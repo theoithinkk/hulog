@@ -38,6 +38,7 @@ yarn-error.log*
 .claude/
 CLAUDE.md
 .impeccable/
+*.stackdump
 
 # vercel
 .vercel
