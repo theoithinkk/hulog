@@ -68,8 +68,13 @@ export async function handleWebhook(headers: Headers, body: string): Promise<num
     return 400;
   }
 
-  if (!(await verifyWebhook(headers, body))) return 400;
+  // Event IDs and types only; the payload carries payer details.
+  if (!(await verifyWebhook(headers, body))) {
+    console.warn(`webhook ${event.id} (${event.event_type}) failed verification`);
+    return 400;
+  }
 
   await insertEvent(toLedgerRow(event, body));
+  console.log(`webhook ${event.id} (${event.event_type}) stored`);
   return 200;
 }
