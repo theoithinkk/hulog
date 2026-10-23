@@ -116,6 +116,7 @@ export type PlanSummary = {
 
 export type Plan = PlanSummary & {
   billing_cycles: {
+    tenure_type: "REGULAR" | "TRIAL";
     frequency: { interval_unit: string };
     total_cycles: number;
     pricing_scheme: { fixed_price: { value: string; currency_code: string } };
@@ -130,7 +131,8 @@ export type Subscription = {
   subscriber?: { name?: { given_name?: string; surname?: string } };
   billing_info?: {
     next_billing_time?: string;
-    cycle_executions?: { cycles_completed: number; total_cycles: number }[];
+    cycle_executions?: { tenure_type: "REGULAR" | "TRIAL"; cycles_completed: number; total_cycles: number }[];
+    outstanding_balance?: { value: string; currency_code: string };
     last_payment?: { amount: { value: string; currency_code: string }; time: string };
   };
 };

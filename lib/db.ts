@@ -16,11 +16,14 @@ export type LedgerRow = {
   raw: string;
 };
 
+// Returns false when the event was already stored (a retry or resend).
 export async function insertEvent(r: LedgerRow) {
-  await db()`
+  const rows = await db()`
     insert into payment_events (event_id, event_type, subscription_id, amount, currency, occurred_at, raw)
     values (${r.eventId}, ${r.eventType}, ${r.subscriptionId}, ${r.amount}, ${r.currency}, ${r.occurredAt}, ${r.raw})
-    on conflict (event_id) do nothing`;
+    on conflict (event_id) do nothing
+    returning event_id`;
+  return rows.length > 0;
 }
 
 export type LedgerEntry = {

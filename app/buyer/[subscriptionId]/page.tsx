@@ -1,18 +1,89 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getSubscription, PayPalError, type Subscription } from "@/lib/paypal";
+import { unstable_cache } from "next/cache";
+import { getPlan, getSubscription, PayPalError, type Subscription } from "@/lib/paypal";
 import { isSubscriptionId } from "@/lib/unit";
 import { eventsFor, type LedgerEntry } from "@/lib/db";
-import { eventLabel } from "@/lib/webhook";
+import { eventLabel, unpaidSince } from "@/lib/webhook";
+import { macedaRights, manilaDate } from "@/lib/maceda";
+import { explainRights, rightsFacts, templateMessage, type Explanation, type Lang, type Situation } from "@/lib/explain";
 
 export const dynamic = "force-dynamic";
 
 const date = (iso?: string) =>
   iso ? new Date(iso).toLocaleDateString("en-PH", { dateStyle: "medium", timeZone: "Asia/Manila" }) : "—";
 
-export default async function BuyerPage({ params }: { params: Promise<{ subscriptionId: string }> }) {
+// Plans don't change after creation, so one PayPal lookup an hour per plan is plenty.
+const cachedPlan = (id: string) => unstable_cache(() => getPlan(id), ["plan", id], { revalidate: 3600 })();
+
+// What the Maceda engine needs: payments made (PayPal) and the installment the buyer is behind on (ledger).
+async function situationFor(sub: Subscription, events: LedgerEntry[] | null): Promise<Situation | null> {
+  const cycles = sub.billing_info?.cycle_executions?.find((c) => c.tenure_type === "REGULAR");
+  if (!cycles || !sub.start_time || !["ACTIVE", "SUSPENDED"].includes(sub.status)) return null;
+
+  // Behind only if the ledger shows an unpaid failure and PayPal agrees money is owed;
+  // either source alone can be stale (a lost webhook, or a balance PayPal hasn't updated yet).
+  const owed = Number(sub.billing_info?.outstanding_balance?.value ?? 0) > 0;
+  const unpaid = owed && events ? unpaidSince(events) : null;
+  const missed = unpaid !== null;
+  const due = unpaid ?? sub.billing_info?.next_billing_time;
+  const price = (await cachedPlan(sub.plan_id)).billing_cycles.find((c) => c.tenure_type === "REGULAR")?.pricing_scheme
+    .fixed_price;
+  // The currency code ends up in text sent to the model; accept only an ISO code.
+  if (!due || !price || !/^[A-Z]{3}$/.test(price.currency_code)) return null;
+
+  const dueDate = manilaDate(new Date(due));
+  return {
+    rights: macedaRights({
+      installmentsPaid: cycles.cycles_completed,
+      totalPaidCents: cycles.cycles_completed * Math.round(Number(price.value) * 100),
+      contractStart: manilaDate(new Date(sub.start_time)),
+      dueDate,
+      // ponytail: grace already used isn't tracked yet; it only matters after 2+ years. Add with contract records.
+    }),
+    missed,
+    dueDate,
+    currency: price.currency_code,
+  };
+}
+
+const inFlight = new Map<string, Promise<Explanation>>();
+
+// Same facts, same language: one model call an hour. Concurrent first views share that one call,
+// and a fallback caused by a transient error isn't cached, so the next view tries again.
+// ponytail: per-process; several Render instances would each make their own call.
+function explanationFor(subId: string, s: Situation, lang: Lang): Promise<Explanation> {
+  const key = JSON.stringify([subId, lang, s]);
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+
+  const cached = unstable_cache(
+    async () => {
+      const r = await explainRights(s, lang);
+      if (r.transient) throw Object.assign(new Error("transient"), { fallback: r });
+      return r;
+    },
+    ["rights", key],
+    { revalidate: 3600 },
+  );
+  const p = cached()
+    .catch((e: { fallback?: Explanation }) => e.fallback ?? { text: templateMessage(s, lang), source: "template" as const })
+    .finally(() => inFlight.delete(key));
+  inFlight.set(key, p);
+  return p;
+}
+
+export default async function BuyerPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ subscriptionId: string }>;
+  searchParams: Promise<{ lang?: string }>;
+}) {
   const { subscriptionId } = await params;
   if (!isSubscriptionId(subscriptionId)) notFound();
+  const lang: Lang = (await searchParams).lang === "fil" ? "fil" : "en";
+  const fil = lang === "fil";
 
   // A ledger outage shouldn't hide the status PayPal already knows.
   const history = eventsFor(subscriptionId).catch((e): LedgerEntry[] | null => {
@@ -29,8 +100,14 @@ export default async function BuyerPage({ params }: { params: Promise<{ subscrip
   }
   const events = await history;
 
+  const situation = await situationFor(sub, events).catch((e): Situation | null => {
+    console.error("rights calculation failed:", e instanceof Error ? e.message : e);
+    return null;
+  });
+  const explanation = situation && (await explanationFor(sub.id, situation, lang));
+
   const name = sub.subscriber?.name?.given_name;
-  const cycles = sub.billing_info?.cycle_executions?.find((c) => c.total_cycles > 0);
+  const cycles = sub.billing_info?.cycle_executions?.find((c) => c.tenure_type === "REGULAR");
   const last = sub.billing_info?.last_payment;
 
   return (
@@ -54,6 +131,33 @@ export default async function BuyerPage({ params }: { params: Promise<{ subscrip
         </p>
       )}
       <p>Next payment: {date(sub.billing_info?.next_billing_time)}</p>
+      {situation && explanation && (
+        <section className="flex flex-col gap-2" lang={lang}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-xl font-semibold">{fil ? "Ang mga karapatan mo" : "Your rights"}</h2>
+            <nav aria-label="Language" className="text-sm">
+              <Link href={`/buyer/${sub.id}`} aria-current={fil ? undefined : "true"} className={fil ? "underline" : "font-semibold"}>
+                English
+              </Link>
+              {" · "}
+              <Link href={`/buyer/${sub.id}?lang=fil`} aria-current={fil ? "true" : undefined} className={fil ? "font-semibold" : "underline"}>
+                Filipino
+              </Link>
+            </nav>
+          </div>
+          <p>{explanation.text}</p>
+          {explanation.source === "ai" && (
+            <p className="text-xs opacity-70">
+              {fil ? "Isinulat ng AI batay sa mga detalye sa ibaba." : "Written by AI from the details below."}
+            </p>
+          )}
+          <ul className="list-disc pl-5 text-sm">
+            {rightsFacts(situation, lang).map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="flex flex-col gap-2">
         <h2 className="text-xl font-semibold">History</h2>
         {events === null && <p role="alert">Payment history is unavailable right now.</p>}
@@ -76,8 +180,10 @@ export default async function BuyerPage({ params }: { params: Promise<{ subscrip
           </ul>
         )}
       </section>
-      <p className="text-sm opacity-70">
-        Information only, not legal advice. Consult a lawyer or licensed broker.
+      <p className="text-sm opacity-70" lang={lang}>
+        {fil
+          ? "Impormasyon lamang ito, hindi legal na payo. Kumonsulta sa abogado o lisensyadong broker."
+          : "Information only, not legal advice. Consult a lawyer or licensed broker."}
       </p>
     </main>
   );

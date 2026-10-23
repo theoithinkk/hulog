@@ -50,9 +50,25 @@ const LABELS: Record<string, string> = {
   "BILLING.SUBSCRIPTION.ACTIVATED": "Plan started",
   "BILLING.SUBSCRIPTION.SUSPENDED": "Plan suspended",
   "BILLING.SUBSCRIPTION.CANCELLED": "Plan cancelled",
+  "BILLING.SUBSCRIPTION.RE-ACTIVATED": "Plan reinstated",
+  "BILLING.SUBSCRIPTION.EXPIRED": "Fully paid",
 };
 
 export const eventLabel = (type: string) => LABELS[type] ?? type;
+
+const FAILED = "BILLING.SUBSCRIPTION.PAYMENT.FAILED";
+
+// When the installment the buyer is behind on fell due, or null if they aren't behind.
+// `events` is newest first. Maceda counts from the due date, so this is the run's first failure:
+// PayPal's later retries of the same installment don't move it.
+export function unpaidSince(events: { event_type: string; occurred_at: string | Date }[]): Date | null {
+  let first: Date | null = null;
+  for (const e of events) {
+    if (e.event_type === FAILED) first = new Date(e.occurred_at);
+    else if (e.event_type !== "BILLING.SUBSCRIPTION.SUSPENDED") break; // a payment or any other event ends the run
+  }
+  return first;
+}
 
 // Returns the HTTP status for PayPal. Throws (500) on storage errors so PayPal retries the delivery.
 export async function handleWebhook(headers: Headers, body: string): Promise<number> {
@@ -74,7 +90,7 @@ export async function handleWebhook(headers: Headers, body: string): Promise<num
     return 400;
   }
 
-  await insertEvent(toLedgerRow(event, body));
-  console.log(`webhook ${event.id} (${event.event_type}) stored`);
+  const stored = await insertEvent(toLedgerRow(event, body));
+  console.log(`webhook ${event.id} (${event.event_type}) ${stored ? "stored" : "duplicate, ignored"}`);
   return 200;
 }

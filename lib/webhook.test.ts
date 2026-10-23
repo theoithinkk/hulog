@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { handleWebhook, toLedgerRow, type PayPalEvent } from "./webhook";
+import { handleWebhook, toLedgerRow, unpaidSince, type PayPalEvent } from "./webhook";
 import { verifyWebhook } from "./paypal";
 import { insertEvent } from "./db";
 
@@ -95,5 +95,31 @@ describe("handleWebhook", () => {
     vi.mocked(verifyWebhook).mockResolvedValue(true);
     vi.mocked(insertEvent).mockRejectedValue(new Error("db down"));
     await expect(handleWebhook(headers, body)).rejects.toThrow("db down");
+  });
+});
+
+describe("unpaidSince", () => {
+  const ev = (event_type: string, day: string) => ({ event_type, occurred_at: `2026-${day}T02:00:00Z` });
+  const FAILED = "BILLING.SUBSCRIPTION.PAYMENT.FAILED";
+  const SALE = "PAYMENT.SALE.COMPLETED";
+  const SUSPENDED = "BILLING.SUBSCRIPTION.SUSPENDED";
+
+  it("is null with no history or when the latest event is a payment", () => {
+    expect(unpaidSince([])).toBeNull();
+    expect(unpaidSince([ev(SALE, "10-23"), ev(FAILED, "10-20")])).toBeNull();
+  });
+
+  it("counts from the first failure, not PayPal's later retries", () => {
+    const events = [ev(FAILED, "10-27"), ev(FAILED, "10-25"), ev(FAILED, "10-23"), ev(SALE, "09-23")];
+    expect(unpaidSince(events)).toEqual(new Date("2026-10-23T02:00:00Z"));
+  });
+
+  it("ignores failures from an earlier episode that was paid", () => {
+    const events = [ev(SUSPENDED, "11-01"), ev(FAILED, "10-27"), ev(SALE, "10-20"), ev(FAILED, "10-10")];
+    expect(unpaidSince(events)).toEqual(new Date("2026-10-27T02:00:00Z"));
+  });
+
+  it("is null for a suspension with no failed payment behind it", () => {
+    expect(unpaidSince([ev(SUSPENDED, "11-01"), ev(SALE, "10-20")])).toBeNull();
   });
 });
