@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { listPlans, type PlanSummary } from "@/lib/paypal";
+import { recentEvents, type LedgerEntry } from "@/lib/db";
+import { eventLabel } from "@/lib/webhook";
 import { NewUnitForm } from "./new-unit-form";
+
+const when = (d: string | Date) =>
+  new Date(d).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila" });
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +17,12 @@ export default async function BrokerPage() {
   } catch (e) {
     console.error("listPlans failed:", e);
     loadError = true;
+  }
+  let events: LedgerEntry[] | null = null;
+  try {
+    events = await recentEvents();
+  } catch (e) {
+    console.error("recentEvents failed:", e);
   }
 
   return (
@@ -41,6 +52,44 @@ export default async function BrokerPage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xl font-semibold">Recent payments</h2>
+        {events === null && <p role="alert">Couldn&apos;t load the payment ledger.</p>}
+        {events?.length === 0 && <p>No payments yet.</p>}
+        {!!events?.length && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-current/20">
+                  <th className="py-2 pr-4">When</th>
+                  <th className="py-2 pr-4">Event</th>
+                  <th className="py-2 pr-4">Amount</th>
+                  <th className="py-2">Buyer</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((e) => (
+                  <tr key={e.event_id} className="border-b border-current/10">
+                    <td className="py-2 pr-4 whitespace-nowrap">{when(e.occurred_at)}</td>
+                    <td className="py-2 pr-4">{eventLabel(e.event_type)}</td>
+                    <td className="py-2 pr-4 whitespace-nowrap">
+                      {e.amount
+                        ? `${e.currency} ${Number(e.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                        : "—"}
+                    </td>
+                    <td className="py-2">
+                      <Link className="underline" href={`/buyer/${e.subscription_id}`}>
+                        {e.subscription_id}
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </main>
   );

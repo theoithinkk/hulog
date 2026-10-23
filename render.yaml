@@ -3,7 +3,7 @@ services:
     name: hulog
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci && npm run db:migrate && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_VERSION

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildPlanBody, createUnitPlan, resetTokenCache } from "./paypal";
+import { buildPlanBody, createUnitPlan, resetTokenCache, verifyWebhook } from "./paypal";
 import type { Unit } from "./unit";
 
 const unit: Unit = {
@@ -138,5 +138,94 @@ describe("createUnitPlan", () => {
     vi.stubEnv("PAYPAL_CLIENT_ID", "");
     await expect(createUnitPlan(unit)).rejects.toThrow(/PAYPAL_CLIENT_ID/);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("verifyWebhook", () => {
+  const fetchMock = vi.fn();
+  const headers = new Headers({
+    "paypal-auth-algo": "SHA256withRSA",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-1",
+    "paypal-transmission-id": "tx-1",
+    "paypal-transmission-sig": "sig",
+    "paypal-transmission-time": "2026-10-24T01:00:00Z",
+  });
+  // Spacing and number formatting PayPal signed; JSON.stringify would normalise both.
+  const raw = '{"id": "WH-1", "amount": 1.50}';
+
+  beforeEach(() => {
+    resetTokenCache();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("PAYPAL_CLIENT_ID", "id");
+    vi.stubEnv("PAYPAL_CLIENT_SECRET", "secret");
+    vi.stubEnv("PAYPAL_WEBHOOK_ID", "WH-ID");
+  });
+
+  afterEach(() => {
+    fetchMock.mockReset();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("sends the headers, webhook ID and the untouched raw event to PayPal", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ access_token: "tok", expires_in: 32400 }))
+      .mockResolvedValueOnce(json({ verification_status: "SUCCESS" }));
+
+    await expect(verifyWebhook(headers, raw)).resolves.toBe(true);
+
+    const [url, init] = fetchMock.mock.calls[1];
+    expect(url).toMatch(/\/v1\/notifications\/verify-webhook-signature$/);
+    expect(init.body).toContain(`"webhook_event":${raw}`);
+    expect(JSON.parse(init.body)).toMatchObject({
+      auth_algo: "SHA256withRSA",
+      cert_url: "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-1",
+      transmission_id: "tx-1",
+      transmission_sig: "sig",
+      transmission_time: "2026-10-24T01:00:00Z",
+      webhook_id: "WH-ID",
+    });
+  });
+
+  it("returns false when PayPal says FAILURE", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ access_token: "tok", expires_in: 32400 }))
+      .mockResolvedValueOnce(json({ verification_status: "FAILURE" }));
+    await expect(verifyWebhook(headers, raw)).resolves.toBe(false);
+  });
+
+  it("returns false without calling PayPal when a signature header is missing", async () => {
+    const partial = new Headers(headers);
+    partial.delete("paypal-transmission-sig");
+    await expect(verifyWebhook(partial, raw)).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["http", "http://api.sandbox.paypal.com/v1/notifications/certs/CERT-1"],
+    ["a non-PayPal host", "https://evil.example/certs/CERT-1"],
+    ["a lookalike host", "https://paypal.com.evil.example/certs/CERT-1"],
+  ])("returns false without calling PayPal when the cert URL is %s", async (_, certUrl) => {
+    const forged = new Headers(headers);
+    forged.set("paypal-cert-url", certUrl);
+    await expect(verifyWebhook(forged, raw)).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("treats a PayPal 4xx on the verify call as unverified", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ access_token: "tok", expires_in: 32400 }))
+      .mockResolvedValueOnce(json({ name: "VALIDATION_ERROR" }, 400));
+    await expect(verifyWebhook(headers, raw)).resolves.toBe(false);
+  });
+
+  it("checks headers before configuration, so junk gets 400 not 500", async () => {
+    vi.stubEnv("PAYPAL_WEBHOOK_ID", "");
+    await expect(verifyWebhook(new Headers(), raw)).resolves.toBe(false);
+  });
+
+  it("fails clearly when the webhook ID is not configured", async () => {
+    vi.stubEnv("PAYPAL_WEBHOOK_ID", "");
+    await expect(verifyWebhook(headers, raw)).rejects.toThrow(/PAYPAL_WEBHOOK_ID/);
   });
 });

@@ -53,7 +53,8 @@ async function call<T>(path: string, body?: unknown, retried = false): Promise<T
       Authorization: `Bearer ${await accessToken()}`,
       "Content-Type": "application/json",
     },
-    body: body ? JSON.stringify(body) : undefined,
+    // A string body is already JSON; see verifyWebhook.
+    body: typeof body === "string" ? body : body ? JSON.stringify(body) : undefined,
     cache: "no-store",
   });
   // A cached token can be revoked early; fetch a fresh one and try once more.
@@ -144,3 +145,43 @@ export const getPlan = (id: string) => call<Plan>(`/v1/billing/plans/${encodeURI
 
 export const getSubscription = (id: string) =>
   call<Subscription>(`/v1/billing/subscriptions/${encodeURIComponent(id)}`);
+
+const SIGNATURE_HEADERS = {
+  auth_algo: "paypal-auth-algo",
+  cert_url: "paypal-cert-url",
+  transmission_id: "paypal-transmission-id",
+  transmission_sig: "paypal-transmission-sig",
+  transmission_time: "paypal-transmission-time",
+};
+
+// Asks PayPal whether it really sent this event. `rawBody` must be valid JSON (the caller parses it first).
+export async function verifyWebhook(headers: Headers, rawBody: string) {
+  // Cheap checks first, so junk never costs a PayPal round trip (or a 500 on a misconfigured server).
+  const fields = Object.fromEntries(
+    Object.entries(SIGNATURE_HEADERS).map(([field, header]) => [field, headers.get(header)]),
+  );
+  if (Object.values(fields).some((v) => !v) || !isPayPalCertUrl(fields.cert_url!)) return false;
+
+  const webhookId = process.env.PAYPAL_WEBHOOK_ID;
+  if (!webhookId) throw new Error("PAYPAL_WEBHOOK_ID must be set");
+
+  // Splice the raw body in: re-serialising the parsed event can change it and fail verification.
+  const body = `${JSON.stringify({ ...fields, webhook_id: webhookId }).slice(0, -1)},"webhook_event":${rawBody}}`;
+  try {
+    const r = await call<{ verification_status: string }>("/v1/notifications/verify-webhook-signature", body);
+    return r.verification_status === "SUCCESS";
+  } catch (e) {
+    // PayPal rejecting the request means it won't vouch for it; a 5xx still throws so PayPal retries.
+    if (e instanceof PayPalError && e.status >= 400 && e.status < 500) return false;
+    throw e;
+  }
+}
+
+function isPayPalCertUrl(raw: string) {
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" && (u.hostname === "paypal.com" || u.hostname.endsWith(".paypal.com"));
+  } catch {
+    return false;
+  }
+}
