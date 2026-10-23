@@ -40,7 +40,8 @@ export default async function BuyerPage({ params }: { params: Promise<{ subscrip
       )}
       {last && (
         <p>
-          Last payment: {last.amount.currency_code} {last.amount.value} on {date(last.time)}
+          Last payment: {last.amount.currency_code}{" "}
+          {Number(last.amount.value).toLocaleString("en-US", { minimumFractionDigits: 2 })} on {date(last.time)}
         </p>
       )}
       <p>Next payment: {date(sub.billing_info?.next_billing_time)}</p>

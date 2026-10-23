@@ -50,8 +50,8 @@ We'll know we're right when **a buyer sees their exact grace-period end date and
 
 | # | Milestone | Outcome | Status | Plan |
 |---|---|---|---|---|
-| 0 | Setup | Public MIT repo and a hosted skeleton anyone can open; PayPal sandbox and test accounts ready (Oct 23–24) | in-progress | docs/plans/setup.plan.md |
-| 1 | Plans + Subscribe | Broker lists a unit; buyer subscribes with a sandbox PayPal account and sees ACTIVE (Oct 25–28) | pending | — |
+| 0 | Setup | Public MIT repo and a hosted skeleton anyone can open; PayPal sandbox and test accounts ready (Oct 23–24) | in-progress (Render deploy + Devpost pending) | docs/plans/setup.plan.md |
+| 1 | Plans + Subscribe | Broker lists a unit; buyer subscribes with a sandbox PayPal account and sees ACTIVE (Oct 25–28) | complete (verified in sandbox Oct 23) | docs/plans/plans-subscribe.plan.md |
 | 2 | Payment ledger | Verified PayPal payment events show in the buyer's history and the broker's table (Oct 29–Nov 1) | pending | — |
 | 3 | Rights on failure | A failed payment produces a correct, broker-reviewed Maceda explanation in EN and FIL (Nov 2–4) | pending | — |
 | 4 | Ask Hulog + risk summary | Buyer asks about their situation and gets answers from live data; broker sees an at-risk summary (Nov 5–7, stretch) | pending | — |
@@ -59,7 +59,7 @@ We'll know we're right when **a buyer sees their exact grace-period end date and
 | 6 | Submission | README, video under 3 minutes, Devpost form, all links tested in incognito (Nov 10–12) | pending | — |
 
 ## Open Questions
-- [ ] Can PayPal sandbox billing plans charge in PHP, or must we bill in USD and show the peso equivalent?
+- [x] Can PayPal sandbox billing plans charge in PHP? **Yes** — a PHP plan was created and charged ₱15,000 in sandbox (Oct 23).
 - [ ] Will Juvy (REB) sign off on the Maceda engine's test cases by Nov 4?
 - [ ] Do the PayPal Agent Toolkit's subscription tools work with Claude as the model?
 - [ ] Should the broker's buyer table target the AG Grid sponsor prize ($5k first place)?
