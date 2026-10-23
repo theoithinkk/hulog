@@ -11,8 +11,8 @@ The buyer page gets a "Your rights" section. When the latest ledger event is a f
 - **"The AI explains, code calculates."** `lib/maceda.ts` computes the grace period end date, refund (cash surrender value) and percentage. The page renders those facts itself, so they're correct even if the AI text is wrong.
 - **Number guardrail.** The AI's paragraph is rejected, and the fixed template shown instead, if it contains any number that isn't in the facts it was given. It fails closed: a false reject only costs some warmth, never correctness.
 - **Templates are the baseline.** With no API key, a timeout, or a refusal, the buyer still gets a correct template message. AI is an enhancement, not a dependency.
-- **Model:** `claude-opus-5-5` through the Anthropic SDK at `effort: "low"` (short, simple writing), with server-side `fallbacks: "default"` so a safety decline is retried instead of failing. 20 s timeout, one retry.
-- **Cached per subscription, due date and language** (`unstable_cache`, 1 day), so reloading the page doesn't call the model again.
+- **Model:** `claude-haiku-5-5` through the Anthropic SDK at `effort: "low"`: a few sentences from given facts don't need a bigger model, at about 1/40th of Opus's price. Haiku has no server-side fallback, so a refusal shows the template. 15 s timeout, no retries.
+- **Cached per subscription, due date and language** (`unstable_cache`, 1 hour), so reloading the page doesn't call the model again.
 - **Installments as months.** Maceda counts years of installments, so years paid = installments paid / 12. In demo mode (daily billing) each charge stands in for one monthly installment.
 - **Total paid = installments paid x plan price.** PayPal is the source; down payments made outside PayPal aren't tracked yet.
 
