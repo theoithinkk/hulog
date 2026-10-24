@@ -57,7 +57,7 @@ export function macedaRights(input: MacedaInput): Rights {
   }
 
   // Sec. 3(a): one month of grace per year paid, once in every five years of the life of the contract.
-  // ponytail: five-year windows counted from contractStart (the literal reading); ask Juvy if rolling windows apply.
+  // Five-year windows counted from contractStart (the literal reading), confirmed in broker review.
   const windowOf = (d: Date) => Math.floor(monthsBetween(contractStart, d) / 60);
   const window = windowOf(dueDate);
   const graceAvailable = !graceUsedAt.some((g) => windowOf(g) === window);

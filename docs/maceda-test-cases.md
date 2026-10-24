@@ -1,6 +1,6 @@
 # Maceda Law engine: test cases for broker review
 
-Hulog computes every legal number with fixed rules (`lib/maceda.ts`). The AI only rewords these results. Each row below is an automated test in `lib/maceda.test.ts`. Please mark each row **OK** or write the correct answer.
+Hulog computes every legal number with fixed rules (`lib/maceda.ts`). The AI only rewords these results. Each row below is an automated test in `lib/maceda.test.ts`. **Reviewed and signed off by Juvy (REB) on Oct 24, 2026: all rows OK, and the current readings below stand.**
 
 Assumptions:
 - Installments are monthly, so "years paid" = installments paid ÷ 12, rounded down.

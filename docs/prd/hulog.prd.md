@@ -53,14 +53,14 @@ We'll know we're right when **a buyer sees their exact grace-period end date and
 | 0 | Setup | Public MIT repo and a hosted skeleton anyone can open; PayPal sandbox and test accounts ready (Oct 23–24) | in-progress (Render deploy + Devpost pending) | docs/plans/setup.plan.md |
 | 1 | Plans + Subscribe | Broker lists a unit; buyer subscribes with a sandbox PayPal account and sees ACTIVE (Oct 25–28) | complete (verified in sandbox Oct 23) | docs/plans/plans-subscribe.plan.md |
 | 2 | Payment ledger | Verified PayPal payment events show in the buyer's history and the broker's table (Oct 29–Nov 1) | in-progress (built; awaiting a real sandbox payment on Render) | docs/plans/payment-ledger.plan.md |
-| 3 | Rights on failure | A failed payment produces a correct, broker-reviewed Maceda explanation in EN and FIL (Nov 2–4) | in-progress (built; awaiting Juvy's sign-off on docs/maceda-test-cases.md) | docs/plans/maceda-rights.plan.md |
+| 3 | Rights on failure | A failed payment produces a correct, broker-reviewed Maceda explanation in EN and FIL (Nov 2–4) | complete (engine test cases signed off by Juvy, REB, Oct 24) | docs/plans/maceda-rights.plan.md |
 | 4 | Ask Hulog + risk summary | Buyer asks about their situation and gets answers from live data; broker sees an at-risk summary (Nov 5–7, stretch) | pending | — |
 | 5 | Demo-ready | Seeded data, a one-click "simulate missed payment", mobile layout, disclaimer (Nov 8–9) | in-progress (simulate missed payment done) | docs/plans/demo-missed-payment.plan.md |
 | 6 | Submission | README, video under 3 minutes, Devpost form, all links tested in incognito (Nov 10–12) | pending | — |
 
 ## Open Questions
 - [x] Can PayPal sandbox billing plans charge in PHP? **Yes** — a PHP plan was created and charged ₱15,000 in sandbox (Oct 23).
-- [ ] Will Juvy (REB) sign off on the Maceda engine's test cases by Nov 4?
+- [x] Will Juvy (REB) sign off on the Maceda engine's test cases by Nov 4? **Yes**, signed off Oct 24, including the current readings in docs/maceda-test-cases.md.
 - [ ] Do the PayPal Agent Toolkit's subscription tools work with Claude as the model?
 - [ ] Should the broker's buyer table target the AG Grid sponsor prize ($5k first place)?
 - [ ] Can we get 3+ OFWs or brokers to try the demo before Nov 10?
