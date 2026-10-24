@@ -171,3 +171,9 @@ a {
     animation: none;
   }
 }
+
+/* The home page's example strip at twice the scale: the one place the strip is the subject itself. */
+.weave--hero {
+  grid-template-columns: repeat(18, minmax(0, 28px));
+  gap: 5px;
+}

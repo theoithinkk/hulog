@@ -191,8 +191,8 @@ export default async function BuyerPage({
 
   return (
     <>
-      <Shell aside={langNav}>
-        <h1 className="mt-6 text-[2rem] font-extrabold leading-tight" lang={lang}>
+      <Shell wide aside={langNav}>
+        <h1 className="mt-6 text-2xl font-extrabold leading-tight sm:text-[2rem]" lang={lang}>
           {name ? (fil ? `Kumusta, ${name}` : `Hi, ${name}`) : fil ? "Ang mga bayad mo" : "Your payments"}
         </h1>
         {plan && (
@@ -220,13 +220,13 @@ export default async function BuyerPage({
         )}
       </Shell>
 
-      <main className="mx-auto flex max-w-xl flex-col gap-10 px-5 pt-8 pb-14" lang={lang}>
+      <main className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] items-start gap-10 px-5 pt-8 pb-14 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]" lang={lang}>
         {situation && explanation && (
           <section aria-labelledby="rights" className="flex flex-col gap-3">
             <h2 id="rights" className="text-2xl font-extrabold">
               {fil ? "Ang mga karapatan mo" : "Your rights"}
             </h2>
-            <div className="flex flex-col gap-4 rounded-2xl bg-panel p-5 shadow-[0_2px_12px_rgba(43,19,56,0.08)]">
+            <div className="flex flex-col gap-4 rounded-2xl bg-panel p-5">
               <div>{decide}</div>
               {/* Its words assume time remains, so it steps aside once the grace period has passed. */}
               {!expired && <p>{explanation.text}</p>}
@@ -273,7 +273,7 @@ export default async function BuyerPage({
           <h2 id="payments" className="text-2xl font-extrabold">
             {fil ? "Mga bayad" : "Payments"}
           </h2>
-          <dl className="rounded-2xl bg-panel px-5 py-2 shadow-[0_2px_12px_rgba(43,19,56,0.08)]">
+          <dl className="rounded-2xl bg-panel px-5 py-2">
             <div className="flex justify-between gap-6 border-b border-line py-3">
               <dt className="text-ink-soft">{fil ? "Katayuan" : "Status"}</dt>
               <dd className="font-semibold">{status}</dd>
@@ -317,7 +317,7 @@ export default async function BuyerPage({
           )}
           {events?.length === 0 && <p className="text-ink-soft">{fil ? "Wala pang naitalang bayad." : "No payments recorded yet."}</p>}
           {!!events?.length && (
-            <ul className="rounded-2xl bg-panel px-5 py-1 shadow-[0_2px_12px_rgba(43,19,56,0.08)]" lang="en">
+            <ul className="rounded-2xl bg-panel px-5 py-1" lang="en">
               {events.map((e) => {
                 const raw = numbers.get(e.event_id);
                 const n = raw && raw <= total ? raw : undefined;
@@ -349,7 +349,7 @@ export default async function BuyerPage({
           <section
             aria-label="Demo controls"
             lang="en"
-            className="flex flex-col gap-3 rounded-2xl border-2 border-dashed border-ink-soft/40 p-5"
+            className="flex flex-col gap-3 rounded-2xl border-2 border-dashed lg:col-span-2 border-ink-soft/40 p-5"
           >
             <p className="text-[0.9375rem] text-ink-soft">
               Demo only. PayPal sandbox can&apos;t fail a payment on cue, so these add or remove a marked, simulated one.
@@ -369,7 +369,11 @@ export default async function BuyerPage({
           </section>
         )}
 
-        {!situation && <Disclaimer fil={fil} />}
+        {!situation && (
+          <div className="lg:col-span-2">
+            <Disclaimer fil={fil} />
+          </div>
+        )}
       </main>
     </>
   );

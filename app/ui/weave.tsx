@@ -1,9 +1,19 @@
 import { strandCounts, type Strand } from "@/lib/strip";
 
 // The signature move: one strand per installment, at the same scale on every page.
-export function WeaveStrip({ strands, label, dark = false }: { strands: Strand[]; label: string; dark?: boolean }) {
+export function WeaveStrip({
+  strands,
+  label,
+  dark = false,
+  hero = false,
+}: {
+  strands: Strand[];
+  label: string;
+  dark?: boolean;
+  hero?: boolean; // twice the scale: only where the strip is the subject itself (the home page)
+}) {
   return (
-    <div role="img" aria-label={label} className={dark ? "weave weave--dark" : "weave"}>
+    <div role="img" aria-label={label} className={`weave${dark ? " weave--dark" : ""}${hero ? " weave--hero" : ""}`}>
       {strands.map((s, i) => (
         <span key={i} className={`strand strand--${s}`} style={{ "--i": i } as React.CSSProperties} />
       ))}

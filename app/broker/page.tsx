@@ -90,12 +90,12 @@ export default async function BrokerPage() {
   const buyers = events ? await buyersFrom(events) : [];
   const buyerOf = new Map(buyers.map((b) => [b.id, b]));
 
-  const panel = "rounded-2xl bg-panel shadow-[0_2px_12px_rgba(43,19,56,0.08)]";
+  const panel = "rounded-2xl bg-panel";
 
   return (
     <>
       <Shell wide aside={<span className="text-shell-soft">Broker</span>}>
-        <h1 className="mt-6 text-[2rem] font-extrabold leading-tight">Your units and buyers</h1>
+        <h1 className="mt-6 text-2xl font-extrabold leading-tight sm:text-[2rem]">Your units and buyers</h1>
         <p className="text-shell-soft">List a unit, send its payment link, and see every buyer&apos;s payments as they happen.</p>
       </Shell>
 
