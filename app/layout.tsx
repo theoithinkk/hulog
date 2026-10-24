@@ -26,8 +26,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={atkinson.variable}>{children}</body>
+    // The variable must be on <html>: the theme's --font-sans is resolved at the root, and a variable
+    // set on <body> leaves it unresolved there, so every page fell back to the system font.
+    <html lang="en" className={atkinson.variable}>
+      <body>{children}</body>
     </html>
   );
 }
