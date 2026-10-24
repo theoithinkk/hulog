@@ -86,6 +86,11 @@ describe("handleWebhook", () => {
     expect(verifyWebhook).not.toHaveBeenCalled();
   });
 
+  it("rejects an event posing as a simulated demo row", async () => {
+    await expect(handleWebhook(headers, JSON.stringify({ ...sale, id: "DEMO-1" }))).resolves.toBe(400);
+    expect(verifyWebhook).not.toHaveBeenCalled();
+  });
+
   it("rejects bodies over 64 KB in bytes, not characters", async () => {
     await expect(handleWebhook(headers, "é".repeat(33 * 1024))).resolves.toBe(413);
     expect(verifyWebhook).not.toHaveBeenCalled();

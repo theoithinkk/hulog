@@ -83,6 +83,8 @@ export async function handleWebhook(headers: Headers, body: string): Promise<num
   if (typeof event?.id !== "string" || typeof event.event_type !== "string" || typeof event.create_time !== "string") {
     return 400;
   }
+  // DEMO- IDs belong to simulated rows (lib/demo.ts); a webhook can never claim one.
+  if (event.id.startsWith("DEMO-")) return 400;
 
   // Event IDs and types only; the payload carries payer details.
   if (!(await verifyWebhook(headers, body))) {

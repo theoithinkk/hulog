@@ -4,11 +4,14 @@ import { unstable_cache } from "next/cache";
 import { getPlan, getSubscription, PayPalError, type Subscription } from "@/lib/paypal";
 import { isSubscriptionId } from "@/lib/unit";
 import { eventsFor, type LedgerEntry } from "@/lib/db";
-import { eventLabel, unpaidSince } from "@/lib/webhook";
+import { behindSince, ledgerLabel } from "@/lib/demo";
+import { resetDemo, simulateMissedPayment } from "./actions";
 import { macedaRights, manilaDate } from "@/lib/maceda";
 import { explainRights, rightsFacts, templateMessage, type Explanation, type Lang, type Situation } from "@/lib/explain";
 
 export const dynamic = "force-dynamic";
+
+const DEMO = process.env.DEMO_MODE === "true";
 
 const date = (iso?: string) =>
   iso ? new Date(iso).toLocaleDateString("en-PH", { dateStyle: "medium", timeZone: "Asia/Manila" }) : "—";
@@ -23,8 +26,9 @@ async function situationFor(sub: Subscription, events: LedgerEntry[] | null): Pr
 
   // Behind only if the ledger shows an unpaid failure and PayPal agrees money is owed;
   // either source alone can be stale (a lost webhook, or a balance PayPal hasn't updated yet).
+  // In demo mode a simulated failure counts without PayPal's balance (see lib/demo.ts).
   const owed = Number(sub.billing_info?.outstanding_balance?.value ?? 0) > 0;
-  const unpaid = owed && events ? unpaidSince(events) : null;
+  const unpaid = behindSince(events, owed, DEMO);
   const missed = unpaid !== null;
   const due = unpaid ?? sub.billing_info?.next_billing_time;
   const price = (await cachedPlan(sub.plan_id)).billing_cycles.find((c) => c.tenure_type === "REGULAR")?.pricing_scheme
@@ -53,6 +57,8 @@ const inFlight = new Map<string, Promise<Explanation>>();
 // and a fallback caused by a transient error isn't cached, so the next view tries again.
 // ponytail: per-process; several Render instances would each make their own call.
 function explanationFor(subId: string, s: Situation, lang: Lang): Promise<Explanation> {
+  // AI off (no key): nothing to cache, and adding a key later takes effect on the next view.
+  if (!process.env.ANTHROPIC_API_KEY) return Promise.resolve({ text: templateMessage(s, lang), source: "template" });
   const key = JSON.stringify([subId, lang, s]);
   const pending = inFlight.get(key);
   if (pending) return pending;
@@ -167,7 +173,7 @@ export default async function BuyerPage({
             {events.map((e) => (
               <li key={e.event_id} className="flex justify-between gap-4 border-b border-current/10 py-1">
                 <span>
-                  {eventLabel(e.event_type)}
+                  {ledgerLabel(e)}
                   <span className="block text-sm opacity-70">{date(new Date(e.occurred_at).toISOString())}</span>
                 </span>
                 {e.amount && (
@@ -180,6 +186,20 @@ export default async function BuyerPage({
           </ul>
         )}
       </section>
+      {DEMO && (
+        <section
+          aria-label="Demo controls"
+          className="flex flex-wrap items-center gap-2 rounded border border-dashed border-current/30 p-3 text-sm"
+        >
+          <span className="opacity-70">Demo only:</span>
+          <form action={simulateMissedPayment.bind(null, sub.id)}>
+            <button className="rounded border border-current/40 px-3 py-1">Simulate a missed payment</button>
+          </form>
+          <form action={resetDemo.bind(null, sub.id)}>
+            <button className="rounded border border-current/40 px-3 py-1">Reset demo</button>
+          </form>
+        </section>
+      )}
       <p className="text-sm opacity-70" lang={lang}>
         {fil
           ? "Impormasyon lamang ito, hindi legal na payo. Kumonsulta sa abogado o lisensyadong broker."

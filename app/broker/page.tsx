@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { listPlans, type PlanSummary } from "@/lib/paypal";
 import { recentEvents, type LedgerEntry } from "@/lib/db";
-import { eventLabel } from "@/lib/webhook";
+import { ledgerLabel } from "@/lib/demo";
 import { NewUnitForm } from "./new-unit-form";
 
 const when = (d: string | Date) =>
@@ -73,7 +73,7 @@ export default async function BrokerPage() {
                 {events.map((e) => (
                   <tr key={e.event_id} className="border-b border-current/10">
                     <td className="py-2 pr-4 whitespace-nowrap">{when(e.occurred_at)}</td>
-                    <td className="py-2 pr-4">{eventLabel(e.event_type)}</td>
+                    <td className="py-2 pr-4">{ledgerLabel(e)}</td>
                     <td className="py-2 pr-4 whitespace-nowrap">
                       {e.amount
                         ? `${e.currency} ${Number(e.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`

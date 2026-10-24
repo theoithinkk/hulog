@@ -55,7 +55,7 @@ We'll know we're right when **a buyer sees their exact grace-period end date and
 | 2 | Payment ledger | Verified PayPal payment events show in the buyer's history and the broker's table (Oct 29–Nov 1) | in-progress (built; awaiting a real sandbox payment on Render) | docs/plans/payment-ledger.plan.md |
 | 3 | Rights on failure | A failed payment produces a correct, broker-reviewed Maceda explanation in EN and FIL (Nov 2–4) | in-progress (built; awaiting Juvy's sign-off on docs/maceda-test-cases.md) | docs/plans/maceda-rights.plan.md |
 | 4 | Ask Hulog + risk summary | Buyer asks about their situation and gets answers from live data; broker sees an at-risk summary (Nov 5–7, stretch) | pending | — |
-| 5 | Demo-ready | Seeded data, a one-click "simulate missed payment", mobile layout, disclaimer (Nov 8–9) | pending | — |
+| 5 | Demo-ready | Seeded data, a one-click "simulate missed payment", mobile layout, disclaimer (Nov 8–9) | in-progress (simulate missed payment done) | docs/plans/demo-missed-payment.plan.md |
 | 6 | Submission | README, video under 3 minutes, Devpost form, all links tested in incognito (Nov 10–12) | pending | — |
 
 ## Open Questions

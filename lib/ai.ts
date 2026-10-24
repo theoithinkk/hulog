@@ -2,7 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 
 // The only file that knows which model provider Hulog uses. Returns null when the model didn't finish normally.
 export async function complete(system: string, prompt: string): Promise<string | null> {
-  // Built per call so a missing key throws here, inside the caller's fallback, not at import time.
+  // No key means AI is switched off on purpose (the demo runs on templates), not an error to log.
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  // Built per call so a bad key throws here, inside the caller's fallback, not at import time.
   // No retries: the template is the fallback, and the page shouldn't wait more than one timeout.
   const client = new Anthropic({ timeout: 15_000, maxRetries: 0 });
   // Haiku: a few sentences from given facts doesn't need a bigger model. It has no server-side

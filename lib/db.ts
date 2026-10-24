@@ -26,6 +26,11 @@ export async function insertEvent(r: LedgerRow) {
   return rows.length > 0;
 }
 
+// Demo reset. Only simulated rows go; real events stay append-only.
+export async function deleteDemoEvents(subscriptionId: string) {
+  await db()`delete from payment_events where subscription_id = ${subscriptionId} and event_id like 'DEMO-%'`;
+}
+
 export type LedgerEntry = {
   event_id: string;
   event_type: string;
