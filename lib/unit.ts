@@ -53,3 +53,10 @@ export function parseUnit(raw: unknown): Result {
 // IDs come from URLs and end up in PayPal API paths, so only accept PayPal's format.
 export const isPlanId = (id: string) => /^P-[A-Z0-9]{8,40}$/.test(id);
 export const isSubscriptionId = (id: string) => /^I-[A-Z0-9]{8,40}$/.test(id);
+
+// Plan descriptions read "<project> - TCP <currency> <amount>" (see buildPlanBody); buyers and their
+// families get "Total price" instead of the industry abbreviation.
+export function totalPriceLabel(description?: string): string | null {
+  const m = description?.match(/TCP ([A-Z]{3} [\d,]+(?:\.\d+)?)/);
+  return m ? `Total price ${m[1]}` : null;
+}

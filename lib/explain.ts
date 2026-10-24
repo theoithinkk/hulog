@@ -17,6 +17,9 @@ const date = (d: Date, lang: Lang) =>
 const money = (cents: number) =>
   (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// Pages format engine dates and amounts the same way the facts do.
+export { date as formatDate, money as formatMoney };
+
 // The authoritative facts, rendered by the page as-is. The AI paragraph may only restate these.
 export function rightsFacts({ rights: r, missed, dueDate, currency }: Situation, lang: Lang): string[] {
   const at = (d: Date) => date(d, lang);

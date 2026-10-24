@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPlanId, isSubscriptionId, parseUnit } from "./unit";
+import { isPlanId, isSubscriptionId, parseUnit, totalPriceLabel } from "./unit";
 
 const valid = {
   name: "Unit 12B",
@@ -65,5 +65,16 @@ describe("PayPal ID checks", () => {
 
   it("rejects a plan id as a subscription id", () => {
     expect(isSubscriptionId("P-5ML4271244454362WXNWU5NQ")).toBe(false);
+  });
+});
+
+describe("totalPriceLabel", () => {
+  it("turns the plan description into plain words", () => {
+    expect(totalPriceLabel("Azure Residences - TCP PHP 1,800,000.00")).toBe("Total price PHP 1,800,000.00");
+  });
+
+  it("is null when the description carries no price", () => {
+    expect(totalPriceLabel("Something else")).toBeNull();
+    expect(totalPriceLabel(undefined)).toBeNull();
   });
 });

@@ -1,26 +1,173 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Banig: an aubergine shell, a lavender-washed ground, and four dyed strand states. */
+@theme {
+  --color-aubergine: #2b1338;
+  --color-aubergine-raised: #3d1f4f;
+  --color-ground: #f4eef6;
+  --color-panel: #ffffff;
+  --color-ink: #1d0f24;
+  --color-ink-soft: #5b4766;
+  --color-line: #e6dbea;
+  --color-shell-ink: #f6eefa;
+  --color-shell-soft: #d9c6e2;
+  --color-magenta: #c2186a;
+  --color-magenta-deep: #9e1356;
+  --color-magenta-light: #ff8ac2;
+  --color-tikog: #1f7a4c;
+  --color-tikog-light: #2a8f5b;
+  --color-turmeric: #e3a51a;
+  --color-turmeric-light: #f6cf6a;
+  --color-turmeric-ink: #6e4a00;
+  --color-straw: #e8dcb8;
+  --color-straw-dark: #d5c494;
+  --color-straw-edge: #9c8650;
+
+  --font-sans: var(--font-atkinson), ui-sans-serif, system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* The page is read on phones abroad and by older relatives at home: larger base size, light ground. */
+html {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  scrollbar-color: var(--color-aubergine-raised) var(--color-ground);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  caret-color: var(--color-magenta);
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+  letter-spacing: -0.01em;
+}
+
+a {
+  text-underline-offset: 0.22em;
+  text-decoration-thickness: 1px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-magenta) 22%, white);
+  color: var(--color-ink);
+}
+
+.shell ::selection {
+  background: var(--color-magenta-light);
+  color: var(--color-aubergine);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-magenta);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.shell :focus-visible {
+  outline-color: var(--color-magenta-light);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The woven strip. One strand per installment, 18 to a row, the same size on every page.
+   Neighbouring strands flip their shading so the row reads as over-under weave. */
+.weave {
+  display: grid;
+  /* 14px strands, narrowing only when a phone is too small to hold 18 of them. */
+  grid-template-columns: repeat(18, minmax(0, 14px));
+  gap: 3px;
+}
+
+.strand {
+  display: block;
+  width: 100%;
+  aspect-ratio: 14 / 22;
+  border-radius: 2px;
+  background: linear-gradient(var(--dir, 180deg), var(--c1) 0 50%, var(--c2) 50%);
+  animation: weave-in 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 14ms);
+}
+
+.strand:nth-child(even) {
+  --dir: 0deg;
+}
+
+.strand--paid {
+  --c1: var(--color-tikog-light);
+  --c2: var(--color-tikog);
+}
+
+/* Undyed straw gets a darker edge so it still reads on white panels. */
+.strand--upcoming {
+  --c1: var(--color-straw);
+  --c2: var(--color-straw-dark);
+  box-shadow: inset 0 0 0 1px var(--color-straw-edge);
+}
+
+.strand--grace {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--color-turmeric) 0 4px,
+    var(--color-turmeric-light) 4px 8px
+  );
+}
+
+/* A missed installment is a gap in the weave, edged so it reads without colour. */
+.strand--missed {
+  background: transparent;
+  outline: 2px dashed var(--color-magenta);
+  outline-offset: -2px;
+}
+
+.weave--dark .strand--missed {
+  outline-color: var(--color-magenta-light);
+}
+
+.swatch {
+  width: 11px;
+  height: 17px;
+  aspect-ratio: auto;
+  flex-shrink: 0;
+  animation: none;
+}
+
+/* The strand beside the deciding date on the buyer's rights panel. */
+.swatch-lg {
+  width: 20px;
+  height: 32px;
+  aspect-ratio: auto;
+  flex-shrink: 0;
+  animation: none;
+}
+
+/* A banig's undyed border band, the seam between the shell and the page. Undyed on purpose:
+   dyed colours mean payment states and are never spent on decoration. */
+.weave-band {
+  height: 6px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--color-straw) 0 10px,
+    var(--color-straw-dark) 10px 20px
+  );
+}
+
+/* Strands settle into the weave; they are fully visible from the first frame. */
+@keyframes weave-in {
+  from {
+    transform: translateY(-5px) scaleY(0.8);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .strand {
+    animation: none;
+  }
 }
