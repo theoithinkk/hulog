@@ -47,7 +47,7 @@ export function NewUnitForm() {
       </label>
       <button
         disabled={pending}
-        className="rounded-lg bg-aubergine px-5 py-3 font-bold text-shell-ink hover:bg-aubergine-raised disabled:cursor-wait disabled:opacity-60 sm:col-span-2"
+        className="transition-colors rounded-lg bg-aubergine px-5 py-3 font-bold text-shell-ink hover:bg-aubergine-raised disabled:cursor-wait disabled:opacity-60 sm:col-span-2"
       >
         {pending ? "Creating the PayPal plan…" : "Create unit and payment link"}
       </button>

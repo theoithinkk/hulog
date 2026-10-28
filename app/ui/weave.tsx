@@ -21,6 +21,17 @@ export function WeaveStrip({
   );
 }
 
+// The strip as ornament between landing sections: undyed strands only, so it never reads as payment data.
+export function WeaveDivider({ count = 56 }: { count?: number }) {
+  return (
+    <div aria-hidden className="weave-divider">
+      {Array.from({ length: count }, (_, i) => (
+        <span key={i} style={{ "--i": i } as React.CSSProperties} />
+      ))}
+    </div>
+  );
+}
+
 export type LegendLabels = Record<Strand, string>;
 
 export const LEGEND_EN: LegendLabels = { paid: "Paid", grace: "In grace", missed: "Missed", upcoming: "To go" };

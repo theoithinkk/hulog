@@ -35,12 +35,12 @@ export default async function PayPage({ params }: { params: Promise<{ planId: st
       </Shell>
 
       <main className="mx-auto flex max-w-xl flex-col gap-10 px-5 pt-8 pb-14">
-        <section aria-labelledby="plan" className="flex flex-col gap-5 rounded-2xl bg-panel p-5">
+        <section aria-labelledby="plan" className="flex flex-col gap-5 panel p-5">
           <h2 id="plan" className="sr-only">
             Your installment plan
           </h2>
           <p>
-            <span className="num block text-[2rem] font-extrabold leading-tight">
+            <span className="stat block">
               {price.currency_code}{" "}
               {Number(price.value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
@@ -65,7 +65,7 @@ export default async function PayPage({ params }: { params: Promise<{ planId: st
         </section>
 
         <section aria-labelledby="how" className="flex flex-col gap-3">
-          <h2 id="how" className="text-2xl font-extrabold">
+          <h2 id="how" className="text-xl font-bold">
             What happens after you subscribe
           </h2>
           <ol className="flex flex-col gap-3">

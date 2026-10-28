@@ -90,7 +90,7 @@ export default async function BrokerPage() {
   const buyers = events ? await buyersFrom(events) : [];
   const buyerOf = new Map(buyers.map((b) => [b.id, b]));
 
-  const panel = "rounded-2xl bg-panel";
+  const panel = "panel";
 
   return (
     <>
@@ -101,7 +101,7 @@ export default async function BrokerPage() {
 
       <main className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] gap-10 px-5 pt-8 pb-14 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <section aria-labelledby="new-unit" className="order-2 flex flex-col gap-3 lg:self-start">
-          <h2 id="new-unit" className="text-2xl font-extrabold">
+          <h2 id="new-unit" className="text-xl font-bold">
             New unit
           </h2>
           <div className={`${panel} p-5`}>
@@ -111,7 +111,7 @@ export default async function BrokerPage() {
 
         <div className="order-1 flex flex-col gap-10">
           <section aria-labelledby="buyers" className="flex flex-col gap-3">
-            <h2 id="buyers" className="text-2xl font-extrabold">
+            <h2 id="buyers" className="text-xl font-bold">
               Buyers
             </h2>
             {events === null && <p role="alert">Couldn&apos;t load the payment ledger.</p>}
@@ -136,7 +136,7 @@ export default async function BrokerPage() {
           </section>
 
           <section aria-labelledby="units" className="flex flex-col gap-3">
-            <h2 id="units" className="text-2xl font-extrabold">
+            <h2 id="units" className="text-xl font-bold">
               Units
             </h2>
             {loadError && <p role="alert">Couldn&apos;t reach PayPal. Check the server&apos;s PayPal settings.</p>}
@@ -154,7 +154,7 @@ export default async function BrokerPage() {
                     {p.status === "ACTIVE" ? (
                       <Link
                         href={`/pay/${p.id}`}
-                        className="rounded-lg border-2 border-aubergine px-4 py-1.5 font-semibold text-aubergine no-underline hover:bg-aubergine/5"
+                        className="transition-colors rounded-lg border-2 border-aubergine bg-panel px-4 py-1.5 font-semibold text-aubergine no-underline hover:bg-aubergine/5"
                       >
                         Payment link
                       </Link>
@@ -168,12 +168,13 @@ export default async function BrokerPage() {
           </section>
 
           <section aria-labelledby="recent" className="flex flex-col gap-3">
-            <h2 id="recent" className="text-2xl font-extrabold">
+            <h2 id="recent" className="text-xl font-bold">
               Recent payments
             </h2>
             {events?.length === 0 && <p className="text-ink-soft">No payments yet.</p>}
             {!!events?.length && (
-              <div className={`${panel} overflow-x-auto`}>
+              <div className={panel}>
+                <div className="overflow-x-auto">
                 <table className="w-full text-left text-[1rem]">
                   <thead className="text-ink-soft">
                     <tr className="border-b border-line">
@@ -217,6 +218,7 @@ export default async function BrokerPage() {
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
           </section>

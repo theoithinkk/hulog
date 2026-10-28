@@ -223,10 +223,10 @@ export default async function BuyerPage({
       <main className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] items-start gap-10 px-5 pt-8 pb-14 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]" lang={lang}>
         {situation && explanation && (
           <section aria-labelledby="rights" className="flex flex-col gap-3">
-            <h2 id="rights" className="text-2xl font-extrabold">
+            <h2 id="rights" className="text-xl font-bold">
               {fil ? "Ang mga karapatan mo" : "Your rights"}
             </h2>
-            <div className="flex flex-col gap-4 rounded-2xl bg-panel p-5">
+            <div className="flex flex-col gap-4 panel p-5">
               <div>{decide}</div>
               {/* Its words assume time remains, so it steps aside once the grace period has passed. */}
               {!expired && <p>{explanation.text}</p>}
@@ -270,43 +270,43 @@ export default async function BuyerPage({
         )}
 
         <section aria-labelledby="payments" className="flex flex-col gap-3">
-          <h2 id="payments" className="text-2xl font-extrabold">
+          <h2 id="payments" className="text-xl font-bold">
             {fil ? "Mga bayad" : "Payments"}
           </h2>
-          <dl className="rounded-2xl bg-panel px-5 py-2">
-            <div className="flex justify-between gap-6 border-b border-line py-3">
-              <dt className="text-ink-soft">{fil ? "Katayuan" : "Status"}</dt>
-              <dd className="font-semibold">{status}</dd>
+          <dl className="grid grid-cols-2 gap-3 [--stat-size:1.5rem] [&>div:last-child:nth-child(even)]:col-span-2">
+            <div className="panel col-span-2 flex flex-col gap-1.5 p-4">
+              <dt className="text-[0.9375rem] text-ink-soft">{fil ? "Katayuan" : "Status"}</dt>
+              <dd className="stat">{status}</dd>
             </div>
             {total > 0 && (
-              <div className="flex justify-between gap-6 border-b border-line py-3">
-                <dt className="text-ink-soft">{fil ? "Naibayad" : "Paid so far"}</dt>
-                <dd className="num font-semibold">
+              <div className="panel flex flex-col gap-1.5 p-4">
+                <dt className="text-[0.9375rem] text-ink-soft">{fil ? "Naibayad" : "Paid so far"}</dt>
+                <dd className="stat">
                   {paid} / {total}
                 </dd>
               </div>
             )}
             {last && (
-              <div className="flex justify-between gap-6 border-b border-line py-3">
-                <dt className="text-ink-soft">{fil ? "Huling bayad" : "Last payment"}</dt>
-                <dd className="num text-right font-semibold">
+              <div className="panel flex flex-col gap-1.5 p-4">
+                <dt className="text-[0.9375rem] text-ink-soft">{fil ? "Huling bayad" : "Last payment"}</dt>
+                <dd className="stat">
                   {amount(last.amount.value, last.amount.currency_code)}
-                  <span className="block text-[0.9375rem] font-normal text-ink-soft">{shortDate(last.time)}</span>
+                  <span className="mt-1 block font-sans text-[0.9375rem] font-normal tracking-normal text-ink-soft [-webkit-text-stroke:0]">{shortDate(last.time)}</span>
                 </dd>
               </div>
             )}
             {situation?.missed ? (
               // Behind: the useful date is when to catch up by, not the missed installment's own due date.
               graceEnds && (
-                <div className="flex justify-between gap-6 py-3">
-                  <dt className="text-ink-soft">{fil ? "Humabol bago ang" : "Catch up by"}</dt>
-                  <dd className="num font-semibold">{formatDate(graceEnds, lang)}</dd>
+                <div className="panel flex flex-col gap-1.5 p-4">
+                  <dt className="text-[0.9375rem] text-ink-soft">{fil ? "Humabol bago ang" : "Catch up by"}</dt>
+                  <dd className="stat">{formatDate(graceEnds, lang)}</dd>
                 </div>
               )
             ) : (
-              <div className="flex justify-between gap-6 py-3">
-                <dt className="text-ink-soft">{fil ? "Susunod na bayad" : "Next payment"}</dt>
-                <dd className="num font-semibold">{shortDate(sub.billing_info?.next_billing_time)}</dd>
+              <div className="panel flex flex-col gap-1.5 p-4">
+                <dt className="text-[0.9375rem] text-ink-soft">{fil ? "Susunod na bayad" : "Next payment"}</dt>
+                <dd className="stat">{shortDate(sub.billing_info?.next_billing_time)}</dd>
               </div>
             )}
           </dl>
@@ -317,7 +317,7 @@ export default async function BuyerPage({
           )}
           {events?.length === 0 && <p className="text-ink-soft">{fil ? "Wala pang naitalang bayad." : "No payments recorded yet."}</p>}
           {!!events?.length && (
-            <ul className="rounded-2xl bg-panel px-5 py-1" lang="en">
+            <ul className="panel px-5 py-1" lang="en">
               {events.map((e) => {
                 const raw = numbers.get(e.event_id);
                 const n = raw && raw <= total ? raw : undefined;
@@ -356,12 +356,12 @@ export default async function BuyerPage({
             </p>
             <div className="flex flex-wrap gap-3">
               <form action={simulateMissedPayment.bind(null, sub.id)}>
-                <button className="rounded-lg bg-aubergine px-4 py-2.5 font-semibold text-shell-ink hover:bg-aubergine-raised">
+                <button className="transition-colors rounded-lg bg-aubergine px-4 py-2.5 font-semibold text-shell-ink hover:bg-aubergine-raised">
                   Simulate a missed payment
                 </button>
               </form>
               <form action={resetDemo.bind(null, sub.id)}>
-                <button className="rounded-lg border-2 border-aubergine px-4 py-2 font-semibold text-aubergine hover:bg-aubergine/5">
+                <button className="transition-colors rounded-lg border-2 border-aubergine bg-panel px-4 py-2 font-semibold text-aubergine hover:bg-aubergine/5">
                   Reset demo
                 </button>
               </form>
