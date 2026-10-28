@@ -6,7 +6,7 @@ An AI payment assistant for Overseas Filipino Workers paying for a home in the P
 
 ## Try it
 
-Hosted demo: _coming soon_
+Hosted demo: https://hulog.onrender.com (free tier, so the first load can take up to a minute while it wakes)
 
 ## Run locally
 
