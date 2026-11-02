@@ -37,7 +37,7 @@ export default function Home() {
             </a>
             <Link
               href="/broker"
-              className="btn-paper ml-2 rounded-lg bg-shell-ink px-3.5 py-1.5 font-bold text-aubergine no-underline hover:bg-white"
+              className="hit btn-paper ml-2 rounded-lg bg-shell-ink px-3.5 py-1.5 font-bold text-aubergine no-underline hover:bg-white"
             >
               Broker demo
             </Link>

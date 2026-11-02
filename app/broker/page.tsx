@@ -7,7 +7,7 @@ import { formatDate } from "@/lib/explain";
 import { cachedPlan, situationFor } from "@/lib/situation";
 import { installmentNumbers, rowStrand, strands, type Strand } from "@/lib/strip";
 import { contractProgress, totalPriceLabel } from "@/lib/unit";
-import { Shell } from "@/app/ui/shell";
+import { JumpNav, Shell } from "@/app/ui/shell";
 import { WeaveStrip } from "@/app/ui/weave";
 import { NewUnitForm } from "./new-unit-form";
 
@@ -42,9 +42,10 @@ async function loadBuyers(ids: string[]): Promise<Buyer[]> {
     ids.map(async (id): Promise<Buyer> => {
       const [sub, history] = await Promise.all([getSubscription(id), eventsFor(id)]);
       const situation = await situationFor(sub, history, DEMO).catch(() => null);
-      const plan = await cachedPlan(sub.plan_id).catch(() => null);
-      const unit = plan?.name;
-      const { paid, total } = contractProgress(sub, plan?.description);
+      // No catch: without the plan the earlier installments are unknown, and a wrong count is worse than a missing row.
+      const plan = await cachedPlan(sub.plan_id);
+      const unit = plan.name;
+      const { paid, total } = contractProgress(sub, plan.description);
       const weave = strands(total, paid, situation?.missed ? { graceEnds: situation.rights.graceEnds } : null);
       // The broker page is public: first name and surname initial are enough to tell buyers apart.
       const given = sub.subscriber?.name?.given_name;
@@ -104,6 +105,14 @@ export default async function BrokerPage() {
       <Shell wide aside={<span className="text-shell-soft">Broker</span>}>
         <h1 className="mt-6 text-2xl font-extrabold leading-tight sm:text-[2rem]">Your units and buyers</h1>
         <p className="text-shell-soft">List a unit, send its payment link, and see every buyer&apos;s payments as they happen.</p>
+        <JumpNav
+          label="Sections"
+          links={[
+            ["#new-unit", "New unit"],
+            ["#units", "Units"],
+            ["#recent", "Payments"],
+          ]}
+        />
       </Shell>
 
       <main className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] gap-10 px-5 pt-8 pb-14 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
@@ -128,10 +137,11 @@ export default async function BrokerPage() {
             {buyers.length > 0 && (
               <ul className={`${panel} px-5`}>
                 {buyers.map((b) => (
-                  <li key={b.id} className="flex flex-col gap-3 border-b border-line py-4 last:border-b-0">
+                  <li key={b.id} className="relative flex flex-col gap-3 border-b border-line py-4 last:border-b-0">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                       <div>
-                        <Link href={`/buyer/${encodeURIComponent(b.id)}`} className="font-extrabold text-ink">
+                        {/* The whole row is the tap target. */}
+                        <Link href={`/buyer/${encodeURIComponent(b.id)}`} className="font-extrabold text-ink after:absolute after:inset-0">
                           {b.name}
                         </Link>
                         {b.unit && <div className="text-[0.9375rem] text-ink-soft">{b.unit}</div>}
@@ -185,24 +195,31 @@ export default async function BrokerPage() {
             {!!payments?.length && (
               <div className={panel}>
                 <div className="overflow-x-auto">
-                <table className="w-full text-left text-[1rem]">
-                  <thead className="text-ink-soft">
-                    <tr className="border-b border-line">
+                {/* On a phone each row becomes two lines, so no column hides off-screen. The roles keep it a table for screen readers. */}
+                <table role="table" className="w-full text-left text-[1rem] max-sm:block">
+                  <thead role="rowgroup" className="text-ink-soft max-sm:hidden">
+                    <tr role="row" className="border-b border-line">
                       <th scope="col" className="px-5 py-3 font-semibold">When</th>
                       <th scope="col" className="px-3 py-3 font-semibold">Payment</th>
                       <th scope="col" className="px-3 py-3 text-right font-semibold">Amount</th>
                       <th scope="col" className="px-5 py-3 font-semibold">Buyer</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody role="rowgroup" className="max-sm:block">
                     {payments.map((e) => {
                       const buyer = e.subscription_id ? buyerOf.get(e.subscription_id) : undefined;
                       const raw = buyer?.numbers[e.event_id];
                       const n = raw && buyer && raw <= buyer.total ? raw : undefined;
                       return (
-                        <tr key={e.event_id} className="border-b border-line last:border-b-0">
-                          <td className="num px-5 py-3 whitespace-nowrap">{when(e.occurred_at)}</td>
-                          <td className="px-3 py-3">
+                        <tr
+                          key={e.event_id}
+                          role="row"
+                          className="border-b border-line last:border-b-0 max-sm:grid max-sm:grid-cols-[1fr_auto] max-sm:gap-x-3 max-sm:px-5 max-sm:py-3"
+                        >
+                          <td role="cell" className="num px-5 py-3 xl:whitespace-nowrap max-sm:col-start-1 max-sm:row-start-3 max-sm:p-0 max-sm:text-[0.9375rem] max-sm:text-ink-soft">
+                            {when(e.occurred_at)}
+                          </td>
+                          <td role="cell" className="px-3 py-3 max-sm:col-span-2 max-sm:row-start-1 max-sm:p-0 max-sm:font-semibold">
                             <span className="flex gap-2.5">
                               {n && buyer && (
                                 <span aria-hidden className={`strand strand--${rowStrand(e.event_type, n, buyer.weave)} swatch mt-1`} />
@@ -213,13 +230,15 @@ export default async function BrokerPage() {
                               </span>
                             </span>
                           </td>
-                          <td className="num px-3 py-3 text-right whitespace-nowrap">
-                            {e.amount
-                              ? `${e.currency} ${Number(e.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
-                              : "—"}
+                          <td role="cell" className="num px-3 py-3 text-right whitespace-nowrap max-sm:col-start-1 max-sm:row-start-2 max-sm:p-0 max-sm:text-left">
+                            {e.amount ? (
+                              `${e.currency} ${Number(e.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                            ) : (
+                              <span className="max-sm:hidden">—</span>
+                            )}
                           </td>
-                          <td className="px-5 py-3 whitespace-nowrap">
-                            <Link className="text-aubergine" href={`/buyer/${encodeURIComponent(e.subscription_id ?? "")}`}>
+                          <td role="cell" className="px-5 py-3 whitespace-nowrap max-sm:col-start-2 max-sm:row-span-2 max-sm:row-start-2 max-sm:self-center max-sm:p-0 max-sm:text-right">
+                            <Link className="text-aubergine max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" href={`/buyer/${encodeURIComponent(e.subscription_id ?? "")}`}>
                               {buyer?.name ?? "Buyer"}
                             </Link>
                           </td>

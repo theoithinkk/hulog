@@ -16,7 +16,8 @@ import {
   type Lang,
   type Situation,
 } from "@/lib/explain";
-import { Disclaimer, Shell } from "@/app/ui/shell";
+import { PendingButton } from "@/app/ui/pending-button";
+import { Disclaimer, JumpNav, Shell } from "@/app/ui/shell";
 import { LEGEND_EN, LEGEND_FIL, WeaveLegend, WeaveStrip } from "@/app/ui/weave";
 import { resetDemo, simulateLongMissedPayment, simulateMissedPayment } from "./actions";
 import { AskHulog } from "./ask-hulog";
@@ -109,7 +110,8 @@ export default async function BuyerPage({
   const name = sub.subscriber?.name?.given_name;
   const price = plan?.billing_cycles.find((c) => c.tenure_type === "REGULAR")?.pricing_scheme.fixed_price;
   const last = sub.billing_info?.last_payment;
-  const { prior, paid, total } = contractProgress(sub, plan?.description);
+  // Without the plan the earlier installments are unknown, so show no count rather than a wrong one.
+  const { prior, paid, total } = plan ? contractProgress(sub, plan.description) : { prior: 0, paid: 0, total: 0 };
   const weave = strands(total, paid, situation?.missed ? { graceEnds: situation.rights.graceEnds } : null);
   const status = STATUS[sub.status]?.[fil ? 1 : 0] ?? sub.status;
   const next = Math.min(paid + 1, total);
@@ -128,7 +130,7 @@ export default async function BuyerPage({
           key={code}
           href={href}
           aria-current={lang === code ? "page" : undefined}
-          className={`rounded-full px-3 py-1 no-underline ${
+          className={`hit rounded-full px-3 py-1 no-underline ${
             lang === code ? "bg-shell-ink font-semibold text-aubergine" : "text-shell-soft hover:text-shell-ink"
           }`}
         >
@@ -199,8 +201,8 @@ export default async function BuyerPage({
             {plan.name}
             {price && (
               <>
-                {" · "}
-                <span className="num whitespace-nowrap">
+                <span className="max-sm:hidden"> · </span>
+                <span className="num whitespace-nowrap max-sm:block">
                   {amount(price.value, price.currency_code)} {fil ? "kada buwan" : "a month"}
                 </span>
               </>
@@ -217,6 +219,13 @@ export default async function BuyerPage({
             <WeaveLegend dark strands={weave} labels={fil ? LEGEND_FIL : LEGEND_EN} />
           </div>
         )}
+        <JumpNav
+          label={fil ? "Mga seksyon" : "Sections"}
+          links={[
+            ["#ask", "Ask Hulog"],
+            ["#payments", fil ? "Mga bayad" : "Payments"],
+          ]}
+        />
       </Shell>
 
       <main className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] items-start gap-10 px-5 pt-8 pb-14 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]" lang={lang}>
@@ -272,8 +281,9 @@ export default async function BuyerPage({
           <h2 id="payments" className="text-xl font-bold">
             {fil ? "Mga bayad" : "Payments"}
           </h2>
-          <dl className="grid grid-cols-2 gap-3 [--stat-size:1.5rem] [&>div:last-child:nth-child(even)]:col-span-2">
-            <div className="panel col-span-2 flex flex-col gap-1.5 p-4">
+          {/* One column on a phone: an amount or a full date doesn't fit a half-width card without breaking. */}
+          <dl className="grid gap-3 [--stat-size:1.5rem] min-[420px]:grid-cols-2 min-[420px]:[&>div:last-child:nth-child(even)]:col-span-2">
+            <div className="panel flex flex-col gap-1.5 p-4 min-[420px]:col-span-2">
               <dt className="text-[0.9375rem] text-ink-soft">{fil ? "Katayuan" : "Status"}</dt>
               <dd className="stat">{status}</dd>
             </div>
@@ -326,22 +336,22 @@ export default async function BuyerPage({
                 const raw = numbers.get(e.event_id);
                 const n = raw && raw <= total ? raw : undefined;
                 return (
-                <li key={e.event_id} className="flex items-start justify-between gap-4 border-b border-line py-3 last:border-b-0">
-                  <span className="flex gap-3">
-                    {n && <span aria-hidden className={`strand strand--${rowStrand(e.event_type, n, weave)} swatch mt-1`} />}
-                    <span>
-                      {n && (
-                        <span className="num" lang={lang}>
-                          {fil ? `Hulog ${n} sa ${total}: ` : `Installment ${n} of ${total}: `}
-                        </span>
+                <li key={e.event_id} className="flex gap-3 border-b border-line py-3 last:border-b-0">
+                  {n && <span aria-hidden className={`strand strand--${rowStrand(e.event_type, n, weave)} swatch mt-1`} />}
+                  <span className="min-w-0 flex-1">
+                    {n && (
+                      <span className="num" lang={lang}>
+                        {fil ? `Hulog ${n} sa ${total}: ` : `Installment ${n} of ${total}: `}
+                      </span>
+                    )}
+                    {ledgerLabel(e)}
+                    <span className="mt-0.5 flex flex-wrap items-baseline justify-between gap-x-4">
+                      <span className="text-[0.9375rem] text-ink-soft">{shortDate(e.due_at ?? e.occurred_at)}</span>
+                      {e.amount && e.currency && (
+                        <span className="num font-semibold whitespace-nowrap">{amount(e.amount, e.currency)}</span>
                       )}
-                      {ledgerLabel(e)}
-                      <span className="block text-[0.9375rem] text-ink-soft">{shortDate(e.due_at ?? e.occurred_at)}</span>
                     </span>
                   </span>
-                  {e.amount && e.currency && (
-                    <span className="num font-semibold whitespace-nowrap">{amount(e.amount, e.currency)}</span>
-                  )}
                 </li>
                 );
               })}
@@ -361,23 +371,32 @@ export default async function BuyerPage({
               Demo only. PayPal sandbox can&apos;t fail a payment on cue, so these add or remove a marked, simulated one, and
               pause or resume this plan on PayPal.
             </p>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <form action={simulateMissedPayment.bind(null, sub.id)}>
-                <button className="transition-colors rounded-lg bg-aubergine px-4 py-2.5 font-semibold text-shell-ink hover:bg-aubergine-raised">
+                <PendingButton
+                  pendingText="Updating PayPal…"
+                  className="w-full transition-colors rounded-lg bg-aubergine px-4 py-2.5 font-semibold text-shell-ink hover:bg-aubergine-raised"
+                >
                   Simulate a missed payment
-                </button>
+                </PendingButton>
               </form>
               {prior >= LONG_MISS_MIN_PRIOR && (
                 <form action={simulateLongMissedPayment.bind(null, sub.id)}>
-                  <button className="transition-colors rounded-lg bg-aubergine px-4 py-2.5 font-semibold text-shell-ink hover:bg-aubergine-raised">
+                  <PendingButton
+                    pendingText="Updating PayPal…"
+                    className="w-full transition-colors rounded-lg bg-aubergine px-4 py-2.5 font-semibold text-shell-ink hover:bg-aubergine-raised"
+                  >
                     Simulate one missed {LONG_MISS_DAYS} days ago
-                  </button>
+                  </PendingButton>
                 </form>
               )}
               <form action={resetDemo.bind(null, sub.id)}>
-                <button className="transition-colors rounded-lg border-2 border-aubergine bg-panel px-4 py-2 font-semibold text-aubergine hover:bg-aubergine/5">
+                <PendingButton
+                  pendingText="Updating PayPal…"
+                  className="w-full transition-colors rounded-lg border-2 border-aubergine bg-panel px-4 py-2 font-semibold text-aubergine hover:bg-aubergine/5"
+                >
                   Reset demo
-                </button>
+                </PendingButton>
               </form>
             </div>
           </section>

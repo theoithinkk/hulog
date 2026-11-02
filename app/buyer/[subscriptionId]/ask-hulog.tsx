@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 // Type-only: a value import would ship the Anthropic SDK to the browser.
 import type { Turn } from "@/lib/ask";
 import type { Lang } from "@/lib/explain";
@@ -18,6 +18,12 @@ export function AskHulog({ subscriptionId, lang }: { subscriptionId: string; lan
   const [error, setError] = useState(false);
   const [pending, startTransition] = useTransition();
   const input = useRef<HTMLTextAreaElement>(null);
+  const list = useRef<HTMLOListElement>(null);
+
+  // On a phone the newest message can land off-screen, above the keyboard or the fold.
+  useEffect(() => {
+    list.current?.lastElementChild?.scrollIntoView({ block: "nearest" });
+  }, [turns.length, pending]);
 
   function ask(question: string) {
     const text = question.trim();
@@ -53,7 +59,7 @@ export function AskHulog({ subscriptionId, lang }: { subscriptionId: string; lan
         </p>
 
         {turns.length > 0 && (
-          <ol aria-live="polite" className="flex flex-col gap-3">
+          <ol ref={list} aria-live="polite" className="flex flex-col gap-3">
             {turns.map((t, i) => (
               <li
                 key={i}
@@ -83,7 +89,7 @@ export function AskHulog({ subscriptionId, lang }: { subscriptionId: string; lan
                   type="button"
                   onClick={() => ask(q)}
                   disabled={pending}
-                  className="rounded-full border border-aubergine/30 px-3.5 py-1.5 text-left text-[0.9375rem] text-aubergine transition-colors hover:bg-aubergine/5 disabled:opacity-60"
+                  className="min-h-11 rounded-full border border-aubergine/30 px-3.5 py-1.5 text-left text-[0.9375rem] text-aubergine transition-colors hover:bg-aubergine/5 disabled:opacity-60"
                 >
                   {q}
                 </button>
@@ -112,6 +118,7 @@ export function AskHulog({ subscriptionId, lang }: { subscriptionId: string; lan
             id="ask-input"
             ref={input}
             rows={2}
+            enterKeyHint="send"
             maxLength={500 /* MAX_QUESTION in lib/ask.ts, which the server enforces */}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}

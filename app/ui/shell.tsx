@@ -27,7 +27,7 @@ function Mark() {
 
 export function Wordmark() {
   return (
-    <Link href="/" className="inline-flex items-center gap-2 text-xl font-extrabold tracking-wide text-shell-ink no-underline">
+    <Link href="/" className="hit inline-flex items-center gap-2 text-xl font-extrabold tracking-wide text-shell-ink no-underline">
       <Mark />
       Hulog
     </Link>
@@ -66,6 +66,26 @@ export function Shell({
         <div className={playful ? "banig-strip" : "weave-band"} aria-hidden />
       </section>
     </>
+  );
+}
+
+// On a phone the working pages stack into one long column, so the sections further down get shortcuts.
+// The first link is the page's main task.
+export function JumpNav({ label, links }: { label: string; links: [href: string, text: string][] }) {
+  return (
+    <nav aria-label={label} className="mt-5 flex flex-wrap gap-2 text-[0.9375rem] lg:hidden">
+      {links.map(([href, text], i) => (
+        <a
+          key={href}
+          href={href}
+          className={`inline-flex min-h-11 items-center rounded-full px-4 font-semibold no-underline ${
+            i === 0 ? "bg-shell-ink text-aubergine" : "border border-white/40 text-shell-ink"
+          }`}
+        >
+          {text}
+        </a>
+      ))}
+    </nav>
   );
 }
 
