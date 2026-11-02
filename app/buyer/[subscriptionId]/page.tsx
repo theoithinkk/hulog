@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { unstable_cache } from "next/cache";
 import { getSubscription, PayPalError, type Subscription } from "@/lib/paypal";
+import { isSampleId } from "@/lib/samples";
 import { isSubscriptionId } from "@/lib/unit";
 import { eventsFor, type LedgerEntry } from "@/lib/db";
 import { ledgerLabel } from "@/lib/demo";
@@ -117,6 +118,7 @@ export default async function BuyerPage({
   const next = Math.min(paid + 1, total);
   const numbers = installmentNumbers(events ?? [], paid);
 
+  const sample = isSampleId(sub.id);
   const self = `/buyer/${sub.id}`;
   const langNav = (
     <nav aria-label={fil ? "Wika" : "Language"} className="flex rounded-full border border-white/25 p-0.5 text-[0.9375rem]">
@@ -196,6 +198,13 @@ export default async function BuyerPage({
         <h1 className="mt-6 text-2xl font-extrabold leading-tight sm:text-[2rem]" lang={lang}>
           {name ? (fil ? `Kumusta, ${name}` : `Hi, ${name}`) : fil ? "Ang mga bayad mo" : "Your payments"}
         </h1>
+        {sample && (
+          <p className="mt-2 mb-1 w-fit rounded-lg bg-shell-ink px-3 py-1 text-[0.9375rem] font-semibold text-aubergine">
+            {fil
+              ? "Halimbawang buyer: gawa-gawa ang datos at walang PayPal plan, pero tunay ang pagkalkula ng mga karapatan."
+              : "Sample buyer: made-up data with no PayPal plan behind it. The rights are calculated by the real engine."}
+          </p>
+        )}
         {plan && (
           <p className="text-shell-soft">
             {plan.name}
@@ -348,7 +357,7 @@ export default async function BuyerPage({
 
         <AskHulog subscriptionId={sub.id} lang={lang} />
 
-        {DEMO && (
+        {DEMO && !sample && (
           <section
             aria-label="Demo controls"
             lang="en"

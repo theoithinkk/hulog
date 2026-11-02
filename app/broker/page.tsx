@@ -4,7 +4,8 @@ import { getSubscription, listPlans, type PlanSummary } from "@/lib/paypal";
 import { eventsFor, recentEvents, type LedgerEntry } from "@/lib/db";
 import { ledgerLabel } from "@/lib/demo";
 import { formatDate } from "@/lib/explain";
-import { situationFor } from "@/lib/situation";
+import { isSampleId, sampleIds } from "@/lib/samples";
+import { cachedPlan, situationFor } from "@/lib/situation";
 import { installmentNumbers, rowStrand, strands, type Strand } from "@/lib/strip";
 import { totalPriceLabel } from "@/lib/unit";
 import { Shell } from "@/app/ui/shell";
@@ -21,6 +22,8 @@ const DEMO = process.env.DEMO_MODE === "true";
 type Buyer = {
   id: string;
   name: string;
+  unit?: string;
+  sample: boolean;
   weave: Strand[];
   total: number;
   numbers: Record<string, number>; // ledger event -> installment number (plain object: the cache stores JSON)
@@ -33,7 +36,7 @@ type Buyer = {
 // ponytail: limited to the latest 20 ledger events; list subscriptions per plan when brokers have more buyers.
 function buyersFrom(events: LedgerEntry[]): Promise<Buyer[]> {
   const ids = [...new Set(events.map((e) => e.subscription_id).filter((id): id is string => !!id))].slice(0, 8);
-  return unstable_cache(() => loadBuyers(ids), ["buyers", ...ids], { revalidate: 30 })();
+  return unstable_cache(() => loadBuyers([...ids, ...sampleIds()]), ["buyers", ...ids], { revalidate: 30 })();
 }
 
 async function loadBuyers(ids: string[]): Promise<Buyer[]> {
@@ -41,6 +44,7 @@ async function loadBuyers(ids: string[]): Promise<Buyer[]> {
     ids.map(async (id): Promise<Buyer> => {
       const [sub, history] = await Promise.all([getSubscription(id), eventsFor(id)]);
       const situation = await situationFor(sub, history, DEMO).catch(() => null);
+      const unit = await cachedPlan(sub.plan_id).then((p) => p.name, () => undefined);
       const cycles = sub.billing_info?.cycle_executions?.find((c) => c.tenure_type === "REGULAR");
       const paid = cycles?.cycles_completed ?? 0;
       const total = cycles?.total_cycles ?? 0;
@@ -49,7 +53,7 @@ async function loadBuyers(ids: string[]): Promise<Buyer[]> {
       const given = sub.subscriber?.name?.given_name;
       const initial = sub.subscriber?.name?.surname?.[0];
       const name = given ? `${given}${initial ? ` ${initial}.` : ""}` : "Buyer";
-      const base = { id, name, weave, total, numbers: Object.fromEntries(installmentNumbers(history, paid)) };
+      const base = { id, name, unit, sample: isSampleId(id), weave, total, numbers: Object.fromEntries(installmentNumbers(history, paid)) };
       if (sub.status !== "ACTIVE" && sub.status !== "SUSPENDED")
         return { ...base, status: sub.status === "EXPIRED" ? "Fully paid" : "Cancelled", tone: "neutral" };
       if (weave.includes("missed")) return { ...base, status: "Missed, grace period over", tone: "missed" };
@@ -58,11 +62,15 @@ async function loadBuyers(ids: string[]): Promise<Buyer[]> {
       return { ...base, status: `On time · ${paid} of ${total} paid`, tone: "ok" };
     }),
   );
-  return rows.flatMap((r) => {
+  const buyers = rows.flatMap((r) => {
     if (r.status === "fulfilled") return [r.value];
     console.error("broker buyer load failed:", r.reason instanceof Error ? r.reason.message : r.reason);
     return [];
   });
+  if (!DEMO) return buyers;
+  // Sandbox testing leaves many plans under one test account, so a demo shows the newest per name.
+  const names = new Set<string>();
+  return buyers.filter((b) => !names.has(b.name) && names.add(b.name));
 }
 
 const TONE = {
@@ -87,8 +95,10 @@ export default async function BrokerPage() {
   } catch (e) {
     console.error("recentEvents failed:", e);
   }
-  const buyers = events ? await buyersFrom(events) : [];
+  const buyers = await buyersFrom(events ?? []);
   const buyerOf = new Map(buyers.map((b) => [b.id, b]));
+  // A buyer the demo board hides shouldn't appear as a nameless row below it.
+  const payments = DEMO ? events?.filter((e) => buyerOf.has(e.subscription_id ?? "")) : events;
 
   const panel = "panel";
 
@@ -123,9 +133,13 @@ export default async function BrokerPage() {
                 {buyers.map((b) => (
                   <li key={b.id} className="flex flex-col gap-3 border-b border-line py-4 last:border-b-0">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                      <Link href={`/buyer/${encodeURIComponent(b.id)}`} className="font-extrabold text-ink">
-                        {b.name}
-                      </Link>
+                      <div>
+                        <Link href={`/buyer/${encodeURIComponent(b.id)}`} className="font-extrabold text-ink">
+                          {b.name}
+                        </Link>
+                        {b.sample && <span className="ml-2 text-[0.9375rem] text-ink-soft">Sample</span>}
+                        {b.unit && <div className="text-[0.9375rem] text-ink-soft">{b.unit}</div>}
+                      </div>
                       <span className={`rounded-full px-3 py-0.5 text-[0.9375rem] font-semibold ${TONE[b.tone]}`}>{b.status}</span>
                     </div>
                     <WeaveStrip strands={b.weave} label={`${b.name}: ${b.status}`} />
@@ -171,8 +185,8 @@ export default async function BrokerPage() {
             <h2 id="recent" className="text-xl font-bold">
               Recent payments
             </h2>
-            {events?.length === 0 && <p className="text-ink-soft">No payments yet.</p>}
-            {!!events?.length && (
+            {payments?.length === 0 && <p className="text-ink-soft">No payments yet.</p>}
+            {!!payments?.length && (
               <div className={panel}>
                 <div className="overflow-x-auto">
                 <table className="w-full text-left text-[1rem]">
@@ -185,7 +199,7 @@ export default async function BrokerPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {events.map((e) => {
+                    {payments.map((e) => {
                       const buyer = e.subscription_id ? buyerOf.get(e.subscription_id) : undefined;
                       const raw = buyer?.numbers[e.event_id];
                       const n = raw && buyer && raw <= buyer.total ? raw : undefined;

@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { sampleEvents } from "./samples";
 
 function db() {
   const url = process.env.DATABASE_URL;
@@ -41,6 +42,8 @@ export type LedgerEntry = {
 };
 
 export async function eventsFor(subscriptionId: string) {
+  const sample = sampleEvents(subscriptionId);
+  if (sample) return sample;
   return (await db()`
     select event_id, event_type, subscription_id, amount, currency, occurred_at
     from payment_events where subscription_id = ${subscriptionId}

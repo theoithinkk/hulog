@@ -1,3 +1,4 @@
+import { samplePlan, sampleSubscription, sampleTransactions } from "./samples";
 import type { Unit } from "./unit";
 
 // ponytail: sandbox only, the PRD rules out live payments. Switch on PAYPAL_ENV if that changes.
@@ -143,10 +144,10 @@ export async function listPlans() {
   return (r.plans ?? []).sort((a, b) => b.create_time.localeCompare(a.create_time));
 }
 
-export const getPlan = (id: string) => call<Plan>(`/v1/billing/plans/${encodeURIComponent(id)}`);
+export const getPlan = async (id: string) => samplePlan(id) ?? call<Plan>(`/v1/billing/plans/${encodeURIComponent(id)}`);
 
-export const getSubscription = (id: string) =>
-  call<Subscription>(`/v1/billing/subscriptions/${encodeURIComponent(id)}`);
+export const getSubscription = async (id: string) =>
+  sampleSubscription(id) ?? call<Subscription>(`/v1/billing/subscriptions/${encodeURIComponent(id)}`);
 
 export type Transaction = {
   id: string;
@@ -158,6 +159,8 @@ export type Transaction = {
 // The subscription's charges between two instants, newest first. Straight from PayPal, so it also
 // shows charges whose webhook never reached the ledger.
 export async function listTransactions(id: string, from: Date, to: Date) {
+  const sample = sampleTransactions(id);
+  if (sample) return sample;
   const q = new URLSearchParams({ start_time: from.toISOString(), end_time: to.toISOString() });
   const r = await call<{ transactions?: Transaction[] }>(
     `/v1/billing/subscriptions/${encodeURIComponent(id)}/transactions?${q}`,

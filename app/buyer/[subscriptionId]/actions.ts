@@ -6,6 +6,7 @@ import { deleteDemoEvents, eventsFor, insertEvent } from "@/lib/db";
 import { demoFailure, isDemoEvent } from "@/lib/demo";
 import type { Lang } from "@/lib/explain";
 import { getPlan, getSubscription, listTransactions } from "@/lib/paypal";
+import { isSampleId } from "@/lib/samples";
 import { cachedPlan, situationFor } from "@/lib/situation";
 import { isSubscriptionId } from "@/lib/unit";
 
@@ -13,7 +14,7 @@ import { isSubscriptionId } from "@/lib/unit";
 // Looking it up in PayPal means demo rows only ever attach to real subscriptions.
 async function demoSubscription(id: string) {
   if (process.env.DEMO_MODE !== "true") throw new Error("Demo controls are off");
-  if (!isSubscriptionId(id)) throw new Error("Invalid subscription ID");
+  if (!isSubscriptionId(id) || isSampleId(id)) throw new Error("Invalid subscription ID");
   return getSubscription(id);
 }
 
