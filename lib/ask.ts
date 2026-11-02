@@ -167,6 +167,14 @@ export const offAnswer = (lang: Lang): Answer => ({
       : "Ask Hulog is switched off right now. Your rights and payments are above.",
 });
 
+export const busyAnswer = (lang: Lang): Answer => ({
+  source: "off",
+  text:
+    lang === "fil"
+      ? "Maraming nagtatanong kay Hulog ngayon. Subukan ulit mamaya. Nasa itaas ang mga karapatan at bayad mo."
+      : "Ask Hulog is busy right now. Please try again later. Your rights and payments are above.",
+});
+
 export type ModelCall = (params: Anthropic.MessageCreateParamsNonStreaming) => Promise<Anthropic.Message>;
 
 const defaultCall: ModelCall = (params) =>

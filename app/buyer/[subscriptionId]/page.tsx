@@ -4,7 +4,7 @@ import { unstable_cache } from "next/cache";
 import { getSubscription, PayPalError, type Subscription } from "@/lib/paypal";
 import { contractProgress, isSubscriptionId } from "@/lib/unit";
 import { eventsFor, type LedgerEntry } from "@/lib/db";
-import { ledgerLabel, LONG_MISS_DAYS, LONG_MISS_MIN_PRIOR } from "@/lib/demo";
+import { isPreparedBuyer, ledgerLabel, LONG_MISS_DAYS, LONG_MISS_MIN_PRIOR, TRY_DEMO_BUYER } from "@/lib/demo";
 import { cachedPlan, situationFor } from "@/lib/situation";
 import { installmentNumbers, rowStrand, strands } from "@/lib/strip";
 import {
@@ -361,7 +361,17 @@ export default async function BuyerPage({
 
         <AskHulog subscriptionId={sub.id} lang={lang} />
 
-        {DEMO && (
+        {DEMO && isPreparedBuyer(sub.id) && (
+          <p lang="en" className="rounded-2xl border-2 border-dashed border-ink-soft/40 p-5 text-[0.9375rem] text-ink-soft lg:col-span-2">
+            Demo only. This buyer is a prepared example, so the demo controls are locked here. Try them on{" "}
+            <Link className="font-semibold text-aubergine" href={`/buyer/${TRY_DEMO_BUYER}`}>
+              this plan
+            </Link>{" "}
+            or on one you subscribe to yourself.
+          </p>
+        )}
+
+        {DEMO && !isPreparedBuyer(sub.id) && (
           <section
             aria-label="Demo controls"
             lang="en"

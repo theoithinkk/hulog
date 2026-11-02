@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { behindSince, demoFailure, isDemoEvent, latestPaymentEvent, ledgerLabel } from "./demo";
+import { behindSince, demoFailure, isDemoEvent, isPreparedBuyer, latestPaymentEvent, ledgerLabel, TRY_DEMO_BUYER } from "./demo";
 
 const FAILED = "BILLING.SUBSCRIPTION.PAYMENT.FAILED";
 const at = (iso: string) => new Date(iso);
@@ -26,6 +26,14 @@ describe("demoFailure", () => {
 
   it("gives every simulated failure its own ID", () => {
     expect(demoFailure("I-ABC123").eventId).not.toBe(demoFailure("I-ABC123").eventId);
+  });
+});
+
+describe("prepared buyers", () => {
+  it("are locked, but the try-it buyer and new subscriptions aren't", () => {
+    expect(isPreparedBuyer("I-44AB396PNF68")).toBe(true);
+    expect(isPreparedBuyer(TRY_DEMO_BUYER)).toBe(false);
+    expect(isPreparedBuyer("I-SOMEONENEW123")).toBe(false);
   });
 });
 

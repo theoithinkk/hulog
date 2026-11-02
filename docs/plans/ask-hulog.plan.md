@@ -30,7 +30,7 @@ The buyer page gets an **Ask Hulog** chat. The buyer types a question in English
 |---|---|---|
 | AI states a wrong number or date | Medium | Number guard against tool results; one rewrite, then a fixed fallback; disclaimer |
 | AI uses a known number in a wrong claim ("1 payment on each day" when a day had none) | Medium | Accepted: the guard checks numbers, not claims; rights panel and history sit on the same page |
-| Cost from repeated questions | Low | Existing per-IP rate limit covers the page's POSTs; 4-round cap; short history |
+| Cost from repeated questions | Low | Per-IP rate limit covers the page's POSTs; server-wide hourly cap on questions; 4-round cap; short history |
 | Prompt injection through the question | Medium | Read-only tools bound to one subscription; nothing to leak beyond the buyer's own data |
 | Slow answers | Medium | Low effort, pending state in the UI |
 

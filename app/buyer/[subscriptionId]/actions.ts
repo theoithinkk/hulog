@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { accountFacts, answerQuestion, offAnswer, parseTurns, rightsToolFacts, transactionFacts, type Answer } from "@/lib/ask";
+import { accountFacts, answerQuestion, busyAnswer, offAnswer, parseTurns, rightsToolFacts, transactionFacts, type Answer } from "@/lib/ask";
 import { deleteDemoEvents, eventsFor, insertEvent } from "@/lib/db";
-import { demoFailure, isDemoEvent, latestPaymentEvent, LONG_MISS_DAYS, LONG_MISS_MIN_PRIOR } from "@/lib/demo";
+import { demoFailure, isDemoEvent, isPreparedBuyer, latestPaymentEvent, LONG_MISS_DAYS, LONG_MISS_MIN_PRIOR } from "@/lib/demo";
 import type { Lang } from "@/lib/explain";
+import { takeAskBudget } from "@/lib/limits";
 import { activateSubscription, getPlan, getSubscription, listTransactions, suspendSubscription } from "@/lib/paypal";
 import { cachedPlan, situationFor } from "@/lib/situation";
 import { isSubscriptionId, priorInstallments } from "@/lib/unit";
@@ -14,6 +15,7 @@ import { isSubscriptionId, priorInstallments } from "@/lib/unit";
 async function demoSubscription(id: string) {
   if (process.env.DEMO_MODE !== "true") throw new Error("Demo controls are off");
   if (!isSubscriptionId(id)) throw new Error("Invalid subscription ID");
+  if (isPreparedBuyer(id)) throw new Error("This buyer's demo controls are locked");
   return getSubscription(id);
 }
 
@@ -72,6 +74,7 @@ export async function askHulog(subscriptionId: string, lang: Lang, rawTurns: unk
 
   // Fetched up front: an unknown subscription fails here, before any model call.
   const sub = await getSubscription(subscriptionId);
+  if (!takeAskBudget()) return busyAnswer(l);
   const plan = once(() => cachedPlan(sub.plan_id));
   const situation = once(async () => {
     const events = await eventsFor(sub.id).catch(() => null);

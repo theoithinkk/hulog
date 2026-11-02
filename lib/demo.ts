@@ -11,6 +11,19 @@ export const isDemoEvent = (eventId: string) => eventId.startsWith(DEMO_PREFIX);
 export const LONG_MISS_DAYS = 75;
 export const LONG_MISS_MIN_PRIOR = 3;
 
+// Prepared buyers, one per contract stage. The site is public, so visitors can't change them;
+// they try the controls on TRY_DEMO_BUYER or on a plan they subscribe to themselves.
+const PREPARED_BUYERS = new Set([
+  "I-242X6XTG64BB",
+  "I-B6H6USY48STE",
+  "I-Y8XJ2NR46X4C",
+  "I-44AB396PNF68",
+  "I-0SAJ0NDCENJA",
+  "I-9E5GA6EFYD6B",
+]);
+export const isPreparedBuyer = (id: string) => PREPARED_BUYERS.has(id);
+export const TRY_DEMO_BUYER = "I-U7BW563L9E5R";
+
 const SUSPENDED = "BILLING.SUBSCRIPTION.SUSPENDED";
 
 // The newest event that says anything about payment. Suspending a plan says nothing either way.
