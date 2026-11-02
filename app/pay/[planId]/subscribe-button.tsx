@@ -56,7 +56,7 @@ export function SubscribeButton(props: { clientId: string; planId: string; curre
       <Script src={src} onReady={() => setReady(true)} />
       <div ref={ref} className="min-h-12" />
       {error && (
-        <p role="alert" className="text-red-600">
+        <p role="alert" className="text-magenta-deep">
           {error}
         </p>
       )}
