@@ -47,7 +47,7 @@ const LABELS: Record<string, string> = {
   "PAYMENT.SALE.REFUNDED": "Payment refunded",
   "PAYMENT.SALE.REVERSED": "Payment reversed",
   "BILLING.SUBSCRIPTION.PAYMENT.FAILED": "Payment failed",
-  "BILLING.SUBSCRIPTION.ACTIVATED": "Plan started",
+  "BILLING.SUBSCRIPTION.ACTIVATED": "Plan active",
   "BILLING.SUBSCRIPTION.SUSPENDED": "Plan suspended",
   "BILLING.SUBSCRIPTION.CANCELLED": "Plan cancelled",
   "BILLING.SUBSCRIPTION.RE-ACTIVATED": "Plan reinstated",
@@ -58,6 +58,11 @@ export const eventLabel = (type: string) => LABELS[type] ?? type;
 
 const FAILED = "BILLING.SUBSCRIPTION.PAYMENT.FAILED";
 
+// Pausing or resuming a plan says nothing about whether the installment was paid.
+// PayPal sends ACTIVATED, not RE-ACTIVATED, when a suspended plan is resumed through its API.
+export const isPauseEvent = (type: string) =>
+  ["BILLING.SUBSCRIPTION.SUSPENDED", "BILLING.SUBSCRIPTION.ACTIVATED", "BILLING.SUBSCRIPTION.RE-ACTIVATED"].includes(type);
+
 // When the installment the buyer is behind on fell due, or null if they aren't behind.
 // `events` is newest first. Maceda counts from the due date, so this is the run's first failure:
 // PayPal's later retries of the same installment don't move it.
@@ -65,7 +70,7 @@ export function unpaidSince(events: { event_type: string; occurred_at: string | 
   let first: Date | null = null;
   for (const e of events) {
     if (e.event_type === FAILED) first = new Date(e.occurred_at);
-    else if (e.event_type !== "BILLING.SUBSCRIPTION.SUSPENDED") break; // a payment or any other event ends the run
+    else if (!isPauseEvent(e.event_type)) break; // a payment or any other event ends the run
   }
   return first;
 }

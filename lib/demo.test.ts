@@ -82,6 +82,11 @@ describe("behindSince", () => {
     expect(latestPaymentEvent([suspended, demo])).toBe(demo);
   });
 
+  it("isn't cleared when the plan is resumed, only by a payment", () => {
+    const resumed = { event_id: "WH-4", event_type: "BILLING.SUBSCRIPTION.ACTIVATED", occurred_at: "2026-10-25T02:00:00Z" };
+    expect(behindSince([resumed, demo], false, true)).toEqual(at("2026-10-24T02:00:00Z"));
+  });
+
   it("uses a backdated due date, which a real charge before the simulation doesn't clear", () => {
     const sale = { event_id: "WH-2", event_type: "PAYMENT.SALE.COMPLETED", occurred_at: "2026-10-23T02:00:00Z" };
     expect(behindSince([{ ...demo, due_at: "2026-08-10T00:00:00Z" }, sale], false, true)).toEqual(at("2026-08-10T00:00:00Z"));

@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
 import { getSubscription, listPlans, type PlanSummary } from "@/lib/paypal";
-import { eventsFor, recentEvents, type LedgerEntry } from "@/lib/db";
-import { ledgerLabel } from "@/lib/demo";
+import { eventsFor, recentBuyerIds, recentEvents, type LedgerEntry } from "@/lib/db";
+import { isPreparedBuyer, ledgerLabel } from "@/lib/demo";
 import { formatDate } from "@/lib/explain";
+import { daysLeft } from "@/lib/followup";
 import { cachedPlan, situationFor } from "@/lib/situation";
 import { installmentNumbers, rowStrand, strands, type Strand } from "@/lib/strip";
 import { contractProgress, totalPriceLabel } from "@/lib/unit";
 import { JumpNav, Shell } from "@/app/ui/shell";
 import { WeaveStrip } from "@/app/ui/weave";
+import { FollowUp } from "./follow-up";
 import { NewUnitForm } from "./new-unit-form";
 
 const when = (d: string | Date) =>
@@ -27,15 +29,20 @@ type Buyer = {
   numbers: Record<string, number>; // ledger event -> installment number (plain object: the cache stores JSON)
   status: string;
   tone: "ok" | "grace" | "missed" | "neutral";
+  graceLeft: number | null; // days; negative once it has passed
+  suspended: boolean;
 };
+
+const days = (n: number) => `${n} day${n === 1 ? "" : "s"}`;
 
 // Buyers are the subscriptions the ledger has heard from, newest first. The page is public and each
 // buyer costs a PayPal call, so the board is cached for 30 seconds whatever the traffic.
-// ponytail: limited to the latest 20 ledger events; list subscriptions per plan when brokers have more buyers.
-function buyersFrom(events: LedgerEntry[]): Promise<Buyer[]> {
-  const ids = [...new Set(events.map((e) => e.subscription_id).filter((id): id is string => !!id))].slice(0, 8);
-  return unstable_cache(() => loadBuyers(ids), ["buyers", ...ids], { revalidate: 30 })();
+function buyersFrom(ids: string[]): Promise<Buyer[]> {
+  return unstable_cache(() => loadBuyers(ids), ["buyers", ...ids], { revalidate: 30, tags: ["buyers"] })();
 }
+
+// Longest overdue first, then whoever runs out of grace soonest.
+const byUrgency = (a: Buyer, b: Buyer) => (a.graceLeft ?? -Infinity) - (b.graceLeft ?? -Infinity);
 
 async function loadBuyers(ids: string[]): Promise<Buyer[]> {
   const rows = await Promise.allSettled(
@@ -51,12 +58,27 @@ async function loadBuyers(ids: string[]): Promise<Buyer[]> {
       const given = sub.subscriber?.name?.given_name;
       const initial = sub.subscriber?.name?.surname?.[0];
       const name = given ? `${given}${initial ? ` ${initial}.` : ""}` : "Buyer";
-      const base = { id, name, unit, weave, total, numbers: Object.fromEntries(installmentNumbers(history, paid)) };
+      const graceLeft = situation?.missed ? daysLeft(situation.rights.graceEnds) : null;
+      const base = {
+        id,
+        name,
+        unit,
+        weave,
+        total,
+        numbers: Object.fromEntries(installmentNumbers(history, paid)),
+        graceLeft,
+        suspended: sub.status === "SUSPENDED",
+      };
       if (sub.status !== "ACTIVE" && sub.status !== "SUSPENDED")
         return { ...base, status: sub.status === "EXPIRED" ? "Fully paid" : "Cancelled", tone: "neutral" };
-      if (weave.includes("missed")) return { ...base, status: "Missed, grace period over", tone: "missed" };
-      if (weave.includes("grace") && situation?.rights.graceEnds)
-        return { ...base, status: `In grace until ${formatDate(situation.rights.graceEnds, "en")}`, tone: "grace" };
+      if (weave.includes("missed")) {
+        const ago = graceLeft !== null ? ` · ${days(-graceLeft)} ago` : "";
+        return { ...base, status: `Missed, grace period over${ago}`, tone: "missed" };
+      }
+      if (weave.includes("grace") && situation?.rights.graceEnds && graceLeft !== null) {
+        const until = formatDate(situation.rights.graceEnds, "en");
+        return { ...base, status: `In grace until ${until} · ${days(graceLeft)} left`, tone: "grace" };
+      }
       return { ...base, status: `On time · ${paid} of ${total} paid`, tone: "ok" };
     }),
   );
@@ -78,6 +100,25 @@ const TONE = {
   neutral: "bg-line text-ink-soft",
 };
 
+function BuyerRow({ buyer: b, children }: { buyer: Buyer; children?: React.ReactNode }) {
+  return (
+    <li className="relative flex flex-col gap-3 border-b border-line py-4 last:border-b-0">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <div>
+          {/* The whole row is the tap target. */}
+          <Link href={`/buyer/${encodeURIComponent(b.id)}`} className="font-extrabold text-ink after:absolute after:inset-0">
+            {b.name}
+          </Link>
+          {b.unit && <div className="text-[0.9375rem] text-ink-soft">{b.unit}</div>}
+        </div>
+        <span className={`rounded-full px-3 py-0.5 text-[0.9375rem] font-semibold ${TONE[b.tone]}`}>{b.status}</span>
+      </div>
+      <WeaveStrip strands={b.weave} label={`${b.name}: ${b.status}`} />
+      {children}
+    </li>
+  );
+}
+
 export default async function BrokerPage() {
   let plans: PlanSummary[] = [];
   let loadError = false;
@@ -88,12 +129,15 @@ export default async function BrokerPage() {
     loadError = true;
   }
   let events: LedgerEntry[] | null = null;
+  let buyerIds: string[] = [];
   try {
-    events = await recentEvents();
+    [events, buyerIds] = await Promise.all([recentEvents(), recentBuyerIds()]);
   } catch (e) {
-    console.error("recentEvents failed:", e);
+    console.error("loading the ledger failed:", e);
   }
-  const buyers = events ? await buyersFrom(events) : [];
+  const buyers = events ? await buyersFrom(buyerIds) : [];
+  const behind = buyers.filter((b) => b.tone === "grace" || b.tone === "missed").sort(byUrgency);
+  const others = buyers.filter((b) => !behind.includes(b));
   const buyerOf = new Map(buyers.map((b) => [b.id, b]));
   // A buyer the demo board hides shouldn't appear as a nameless row below it.
   const payments = DEMO ? events?.filter((e) => buyerOf.has(e.subscription_id ?? "")) : events;
@@ -126,30 +170,33 @@ export default async function BrokerPage() {
         </section>
 
         <div className="order-1 flex flex-col gap-10">
+          {behind.length > 0 && (
+            <section aria-labelledby="attention" className="flex flex-col gap-3">
+              <h2 id="attention" className="text-xl font-bold">
+                Needs attention
+              </h2>
+              <ul className={`${panel} px-5`}>
+                {behind.map((b) => (
+                  <BuyerRow key={b.id} buyer={b}>
+                    <FollowUp subscriptionId={b.id} name={b.name} suspended={b.suspended} locked={isPreparedBuyer(b.id)} />
+                  </BuyerRow>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <section aria-labelledby="buyers" className="flex flex-col gap-3">
             <h2 id="buyers" className="text-xl font-bold">
-              Buyers
+              {behind.length > 0 ? "Other buyers" : "Buyers"}
             </h2>
             {events === null && <p role="alert">Couldn&apos;t load the payment ledger.</p>}
             {events && buyers.length === 0 && (
               <p className="text-ink-soft">No buyers yet. Send a unit&apos;s payment link to a buyer to see them here.</p>
             )}
-            {buyers.length > 0 && (
+            {others.length > 0 && (
               <ul className={`${panel} px-5`}>
-                {buyers.map((b) => (
-                  <li key={b.id} className="relative flex flex-col gap-3 border-b border-line py-4 last:border-b-0">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                      <div>
-                        {/* The whole row is the tap target. */}
-                        <Link href={`/buyer/${encodeURIComponent(b.id)}`} className="font-extrabold text-ink after:absolute after:inset-0">
-                          {b.name}
-                        </Link>
-                        {b.unit && <div className="text-[0.9375rem] text-ink-soft">{b.unit}</div>}
-                      </div>
-                      <span className={`rounded-full px-3 py-0.5 text-[0.9375rem] font-semibold ${TONE[b.tone]}`}>{b.status}</span>
-                    </div>
-                    <WeaveStrip strands={b.weave} label={`${b.name}: ${b.status}`} />
-                  </li>
+                {others.map((b) => (
+                  <BuyerRow key={b.id} buyer={b} />
                 ))}
               </ul>
             )}

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { accountFacts, answerQuestion, busyAnswer, offAnswer, parseTurns, rightsToolFacts, transactionFacts, type Answer } from "@/lib/ask";
 import { deleteDemoEvents, eventsFor, insertEvent } from "@/lib/db";
 import { demoFailure, isDemoEvent, isPreparedBuyer, latestPaymentEvent, LONG_MISS_DAYS, LONG_MISS_MIN_PRIOR } from "@/lib/demo";
@@ -36,6 +36,7 @@ async function simulateMiss(subscriptionId: string, daysAgo: number) {
       console.error("demo suspend failed:", e instanceof Error ? e.message : e),
     );
   }
+  revalidateTag("buyers");
   revalidatePath(`/buyer/${sub.id}`);
 }
 
@@ -55,6 +56,7 @@ export async function resetDemo(subscriptionId: string) {
       console.error("demo activate failed:", e instanceof Error ? e.message : e),
     );
   }
+  revalidateTag("buyers");
   revalidatePath(`/buyer/${sub.id}`);
 }
 

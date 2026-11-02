@@ -119,6 +119,15 @@ describe("unpaidSince", () => {
     expect(unpaidSince(events)).toEqual(new Date("2026-10-23T02:00:00Z"));
   });
 
+  it("stays behind when a plan is resumed, until a payment arrives", () => {
+    // PayPal sends ACTIVATED when a plan is resumed through the API.
+    for (const type of ["BILLING.SUBSCRIPTION.ACTIVATED", "BILLING.SUBSCRIPTION.RE-ACTIVATED"]) {
+      const resumed = ev(type, "11-02");
+      expect(unpaidSince([resumed, ev(SUSPENDED, "11-01"), ev(FAILED, "10-27")])).toEqual(new Date("2026-10-27T02:00:00Z"));
+      expect(unpaidSince([ev(SALE, "11-03"), resumed, ev(FAILED, "10-27")])).toBeNull();
+    }
+  });
+
   it("ignores failures from an earlier episode that was paid", () => {
     const events = [ev(SUSPENDED, "11-01"), ev(FAILED, "10-27"), ev(SALE, "10-20"), ev(FAILED, "10-10")];
     expect(unpaidSince(events)).toEqual(new Date("2026-10-27T02:00:00Z"));

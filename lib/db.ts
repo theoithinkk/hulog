@@ -48,6 +48,16 @@ export async function eventsFor(subscriptionId: string) {
     order by occurred_at desc limit 100`) as LedgerEntry[];
 }
 
+// Every buyer the ledger has heard from, most recent first. Separate from recentEvents: a paused plan
+// gets no new events, and it still has to stay on the board.
+// ponytail: capped at 20 because each buyer costs a PayPal call; add paging when a broker has more.
+export async function recentBuyerIds() {
+  const rows = (await db()`
+    select subscription_id from payment_events where subscription_id is not null
+    group by subscription_id order by max(occurred_at) desc limit 20`) as { subscription_id: string }[];
+  return rows.map((r) => r.subscription_id);
+}
+
 export async function recentEvents() {
   return (await db()`
     select event_id, event_type, subscription_id, amount, currency, occurred_at

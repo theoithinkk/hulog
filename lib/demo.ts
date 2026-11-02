@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { LedgerRow } from "./db";
-import { eventLabel, unpaidSince } from "./webhook";
+import { eventLabel, isPauseEvent, unpaidSince } from "./webhook";
 
 // PayPal sandbox can't fail a payment on cue, so DEMO_MODE adds fake failures to the ledger.
 // They're marked by this prefix (and raw = {"demo": true}) and never come from a webhook.
@@ -24,11 +24,9 @@ const PREPARED_BUYERS = new Set([
 export const isPreparedBuyer = (id: string) => PREPARED_BUYERS.has(id);
 export const TRY_DEMO_BUYER = "I-U7BW563L9E5R";
 
-const SUSPENDED = "BILLING.SUBSCRIPTION.SUSPENDED";
-
-// The newest event that says anything about payment. Suspending a plan says nothing either way.
+// The newest event that says anything about payment.
 export const latestPaymentEvent = <T extends { event_type: string }>(events: T[]) =>
-  events.find((e) => e.event_type !== SUSPENDED);
+  events.find((e) => !isPauseEvent(e.event_type));
 
 // `dueAt` backdates the missed installment. The row itself is still recorded now, so it stays the
 // newest event: a real charge from before the simulation doesn't clear it.
@@ -63,7 +61,7 @@ export function behindSince(
   demoMode: boolean,
 ): Date | null {
   if (!events) return null;
-  const relevant = events.filter((e) => e.event_type !== SUSPENDED);
+  const relevant = events.filter((e) => !isPauseEvent(e.event_type));
   if (demoMode && relevant[0] && isDemoEvent(relevant[0].event_id)) {
     let first = relevant[0];
     for (const e of relevant) {
