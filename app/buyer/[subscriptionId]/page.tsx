@@ -2,10 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { unstable_cache } from "next/cache";
 import { getSubscription, PayPalError, type Subscription } from "@/lib/paypal";
-import { isSampleId } from "@/lib/samples";
-import { isSubscriptionId } from "@/lib/unit";
+import { contractProgress, isSubscriptionId } from "@/lib/unit";
 import { eventsFor, type LedgerEntry } from "@/lib/db";
-import { ledgerLabel } from "@/lib/demo";
+import { ledgerLabel, LONG_MISS_DAYS, LONG_MISS_MIN_PRIOR } from "@/lib/demo";
 import { cachedPlan, situationFor } from "@/lib/situation";
 import { installmentNumbers, rowStrand, strands } from "@/lib/strip";
 import {
@@ -19,7 +18,7 @@ import {
 } from "@/lib/explain";
 import { Disclaimer, Shell } from "@/app/ui/shell";
 import { LEGEND_EN, LEGEND_FIL, WeaveLegend, WeaveStrip } from "@/app/ui/weave";
-import { resetDemo, simulateMissedPayment } from "./actions";
+import { resetDemo, simulateLongMissedPayment, simulateMissedPayment } from "./actions";
 import { AskHulog } from "./ask-hulog";
 
 export const dynamic = "force-dynamic";
@@ -108,17 +107,14 @@ export default async function BuyerPage({
   const explanation = situation && (await explanationFor(sub.id, situation, lang));
 
   const name = sub.subscriber?.name?.given_name;
-  const cycles = sub.billing_info?.cycle_executions?.find((c) => c.tenure_type === "REGULAR");
   const price = plan?.billing_cycles.find((c) => c.tenure_type === "REGULAR")?.pricing_scheme.fixed_price;
   const last = sub.billing_info?.last_payment;
-  const paid = cycles?.cycles_completed ?? 0;
-  const total = cycles?.total_cycles ?? 0;
+  const { prior, paid, total } = contractProgress(sub, plan?.description);
   const weave = strands(total, paid, situation?.missed ? { graceEnds: situation.rights.graceEnds } : null);
   const status = STATUS[sub.status]?.[fil ? 1 : 0] ?? sub.status;
   const next = Math.min(paid + 1, total);
   const numbers = installmentNumbers(events ?? [], paid);
 
-  const sample = isSampleId(sub.id);
   const self = `/buyer/${sub.id}`;
   const langNav = (
     <nav aria-label={fil ? "Wika" : "Language"} className="flex rounded-full border border-white/25 p-0.5 text-[0.9375rem]">
@@ -198,13 +194,6 @@ export default async function BuyerPage({
         <h1 className="mt-6 text-2xl font-extrabold leading-tight sm:text-[2rem]" lang={lang}>
           {name ? (fil ? `Kumusta, ${name}` : `Hi, ${name}`) : fil ? "Ang mga bayad mo" : "Your payments"}
         </h1>
-        {sample && (
-          <p className="mt-2 mb-1 w-fit rounded-lg bg-shell-ink px-3 py-1 text-[0.9375rem] font-semibold text-aubergine">
-            {fil
-              ? "Halimbawang buyer: gawa-gawa ang datos at walang PayPal plan, pero tunay ang pagkalkula ng mga karapatan."
-              : "Sample buyer: made-up data with no PayPal plan behind it. The rights are calculated by the real engine."}
-          </p>
-        )}
         {plan && (
           <p className="text-shell-soft">
             {plan.name}
@@ -293,6 +282,11 @@ export default async function BuyerPage({
                 <dt className="text-[0.9375rem] text-ink-soft">{fil ? "Naibayad" : "Paid so far"}</dt>
                 <dd className="stat">
                   {paid} / {total}
+                  {prior > 0 && (
+                    <span className="mt-1 block font-sans text-[0.9375rem] font-normal tracking-normal text-ink-soft [-webkit-text-stroke:0]">
+                      {fil ? `${prior} bago ang Hulog, ayon sa broker` : `${prior} before Hulog, per your broker`}
+                    </span>
+                  )}
                 </dd>
               </div>
             )}
@@ -342,7 +336,7 @@ export default async function BuyerPage({
                         </span>
                       )}
                       {ledgerLabel(e)}
-                      <span className="block text-[0.9375rem] text-ink-soft">{shortDate(e.occurred_at)}</span>
+                      <span className="block text-[0.9375rem] text-ink-soft">{shortDate(e.due_at ?? e.occurred_at)}</span>
                     </span>
                   </span>
                   {e.amount && e.currency && (
@@ -357,14 +351,15 @@ export default async function BuyerPage({
 
         <AskHulog subscriptionId={sub.id} lang={lang} />
 
-        {DEMO && !sample && (
+        {DEMO && (
           <section
             aria-label="Demo controls"
             lang="en"
             className="flex flex-col gap-3 rounded-2xl border-2 border-dashed lg:col-span-2 border-ink-soft/40 p-5"
           >
             <p className="text-[0.9375rem] text-ink-soft">
-              Demo only. PayPal sandbox can&apos;t fail a payment on cue, so these add or remove a marked, simulated one.
+              Demo only. PayPal sandbox can&apos;t fail a payment on cue, so these add or remove a marked, simulated one, and
+              pause or resume this plan on PayPal.
             </p>
             <div className="flex flex-wrap gap-3">
               <form action={simulateMissedPayment.bind(null, sub.id)}>
@@ -372,6 +367,13 @@ export default async function BuyerPage({
                   Simulate a missed payment
                 </button>
               </form>
+              {prior >= LONG_MISS_MIN_PRIOR && (
+                <form action={simulateLongMissedPayment.bind(null, sub.id)}>
+                  <button className="transition-colors rounded-lg bg-aubergine px-4 py-2.5 font-semibold text-shell-ink hover:bg-aubergine-raised">
+                    Simulate one missed {LONG_MISS_DAYS} days ago
+                  </button>
+                </form>
+              )}
               <form action={resetDemo.bind(null, sub.id)}>
                 <button className="transition-colors rounded-lg border-2 border-aubergine bg-panel px-4 py-2 font-semibold text-aubergine hover:bg-aubergine/5">
                   Reset demo

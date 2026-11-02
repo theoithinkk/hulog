@@ -3,35 +3,56 @@
 import { revalidatePath } from "next/cache";
 import { accountFacts, answerQuestion, offAnswer, parseTurns, rightsToolFacts, transactionFacts, type Answer } from "@/lib/ask";
 import { deleteDemoEvents, eventsFor, insertEvent } from "@/lib/db";
-import { demoFailure, isDemoEvent } from "@/lib/demo";
+import { demoFailure, isDemoEvent, latestPaymentEvent, LONG_MISS_DAYS, LONG_MISS_MIN_PRIOR } from "@/lib/demo";
 import type { Lang } from "@/lib/explain";
-import { getPlan, getSubscription, listTransactions } from "@/lib/paypal";
-import { isSampleId } from "@/lib/samples";
+import { activateSubscription, getPlan, getSubscription, listTransactions, suspendSubscription } from "@/lib/paypal";
 import { cachedPlan, situationFor } from "@/lib/situation";
-import { isSubscriptionId } from "@/lib/unit";
+import { isSubscriptionId, priorInstallments } from "@/lib/unit";
 
 // The ID arrives from the browser (bound to the form), so check it like any other input.
 // Looking it up in PayPal means demo rows only ever attach to real subscriptions.
 async function demoSubscription(id: string) {
   if (process.env.DEMO_MODE !== "true") throw new Error("Demo controls are off");
-  if (!isSubscriptionId(id) || isSampleId(id)) throw new Error("Invalid subscription ID");
+  if (!isSubscriptionId(id)) throw new Error("Invalid subscription ID");
   return getSubscription(id);
 }
 
-export async function simulateMissedPayment(subscriptionId: string) {
+async function simulateMiss(subscriptionId: string, daysAgo: number) {
   const sub = await demoSubscription(subscriptionId);
   // Already showing a simulated miss: another click adds nothing, which caps ledger spam at one row.
-  const [latest] = await eventsFor(sub.id);
+  const latest = latestPaymentEvent(await eventsFor(sub.id));
   if (latest && isDemoEvent(latest.event_id)) return;
   const plan = await getPlan(sub.plan_id);
+  // A due date before the contract began has no rights to calculate.
+  if (daysAgo && priorInstallments(plan.description) < LONG_MISS_MIN_PRIOR) throw new Error("Contract is too new");
   const price = plan.billing_cycles.find((c) => c.tenure_type === "REGULAR")?.pricing_scheme.fixed_price;
-  await insertEvent(demoFailure(sub.id, price));
+  const now = new Date();
+  await insertEvent(demoFailure(sub.id, price, now, daysAgo ? new Date(now.getTime() - daysAgo * 86_400_000) : undefined));
+  // Really stop the charges: the next one would count as catching up and undo the simulated miss.
+  if (sub.status === "ACTIVE") {
+    await suspendSubscription(sub.id, "Hulog demo: simulated missed payment").catch((e) =>
+      console.error("demo suspend failed:", e instanceof Error ? e.message : e),
+    );
+  }
   revalidatePath(`/buyer/${sub.id}`);
+}
+
+export async function simulateMissedPayment(subscriptionId: string) {
+  await simulateMiss(subscriptionId, 0);
+}
+
+export async function simulateLongMissedPayment(subscriptionId: string) {
+  await simulateMiss(subscriptionId, LONG_MISS_DAYS);
 }
 
 export async function resetDemo(subscriptionId: string) {
   const sub = await demoSubscription(subscriptionId);
   await deleteDemoEvents(sub.id);
+  if (sub.status === "SUSPENDED") {
+    await activateSubscription(sub.id, "Hulog demo: reset").catch((e) =>
+      console.error("demo activate failed:", e instanceof Error ? e.message : e),
+    );
+  }
   revalidatePath(`/buyer/${sub.id}`);
 }
 
@@ -59,8 +80,9 @@ export async function askHulog(subscriptionId: string, lang: Lang, rawTurns: unk
 
   return answerQuestion(turns, l, {
     account: async () => {
-      const price = (await plan()).billing_cycles.find((c) => c.tenure_type === "REGULAR")?.pricing_scheme.fixed_price;
-      return accountFacts(sub, price, await situation());
+      const p = await plan();
+      const price = p.billing_cycles.find((c) => c.tenure_type === "REGULAR")?.pricing_scheme.fixed_price;
+      return accountFacts(sub, price, await situation(), priorInstallments(p.description));
     },
     // From a day before the plan started, so the first charge is never cut off by time zones.
     payments: async () =>

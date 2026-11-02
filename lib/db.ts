@@ -1,5 +1,4 @@
 import { neon } from "@neondatabase/serverless";
-import { sampleEvents } from "./samples";
 
 function db() {
   const url = process.env.DATABASE_URL;
@@ -39,13 +38,12 @@ export type LedgerEntry = {
   amount: string | null;
   currency: string | null;
   occurred_at: string | Date;
+  due_at?: string | null; // a simulated failure's backdated due date (see demoFailure)
 };
 
 export async function eventsFor(subscriptionId: string) {
-  const sample = sampleEvents(subscriptionId);
-  if (sample) return sample;
   return (await db()`
-    select event_id, event_type, subscription_id, amount, currency, occurred_at
+    select event_id, event_type, subscription_id, amount, currency, occurred_at, raw->>'dueAt' as due_at
     from payment_events where subscription_id = ${subscriptionId}
     order by occurred_at desc limit 100`) as LedgerEntry[];
 }

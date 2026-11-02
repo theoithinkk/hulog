@@ -74,6 +74,15 @@ describe("accountFacts", () => {
     expect(facts).toContain("Behind on a payment: yes");
   });
 
+  it("counts installments paid before Hulog, and says PayPal doesn't list them", () => {
+    const facts = accountFacts(sub, price, situation, 24).join("\n");
+    expect(facts).toContain("Installments paid: 34 of 60");
+    expect(facts).toContain("Installments remaining: 26");
+    expect(facts).toContain("Next installment number: 35");
+    expect(facts).toContain("Paid so far: PHP 510,000.00");
+    expect(facts).toContain("Of those paid, 24 were before Hulog");
+  });
+
   it("leaves out amounts it can't compute when the plan price is unknown", () => {
     const facts = accountFacts(sub, undefined, null).join("\n");
     expect(facts).toContain("Installments paid: 10 of 36");

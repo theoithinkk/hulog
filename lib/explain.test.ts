@@ -39,6 +39,15 @@ describe("rightsFacts", () => {
     expect(facts).toContain("PHP 594,000.00 (55% of what you've paid through Hulog)");
   });
 
+  it("says when the count includes payments made before Hulog, in both languages", () => {
+    const en = rightsFacts({ ...over2, prior: 36 }, "en").join("\n");
+    expect(en).toContain("(55% of what you've paid)");
+    expect(en).toContain("This counts 36 installments paid before Hulog, as recorded by your broker.");
+    const fil = rightsFacts({ ...over2, prior: 36 }, "fil").join("\n");
+    expect(fil).not.toContain("sa Hulog)");
+    expect(fil).toContain("36 hulog na naibayad bago ang Hulog");
+  });
+
   it("says when grace is available again if it was already used", () => {
     const used: Situation = {
       ...over2,

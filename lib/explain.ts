@@ -8,6 +8,7 @@ export type Situation = {
   missed: boolean; // true: this installment was missed; false: what would apply if it were
   dueDate: Date;
   currency: string;
+  prior?: number; // installments paid before Hulog, on the broker's word
 };
 
 // Engine dates are calendar days at midnight UTC, so format them in UTC.
@@ -21,7 +22,7 @@ const money = (cents: number) =>
 export { date as formatDate, money as formatMoney };
 
 // The authoritative facts, rendered by the page as-is. The AI paragraph may only restate these.
-export function rightsFacts({ rights: r, missed, dueDate, currency }: Situation, lang: Lang): string[] {
+export function rightsFacts({ rights: r, missed, dueDate, currency, prior }: Situation, lang: Lang): string[] {
   const at = (d: Date) => date(d, lang);
   const refund = `${currency} ${money(r.refundCents)} (${r.refundPercent}%`;
 
@@ -40,9 +41,10 @@ export function rightsFacts({ rights: r, missed, dueDate, currency }: Situation,
             r.graceAvailable
               ? `Grace period: ${r.graceMonths} buwan, walang interes, hanggang ${at(r.graceEnds!)}`
               : `Grace period: nagamit na sa loob ng 5 taong ito ng kontrata; puwede ulit simula ${at(r.nextGraceFrom!)}`,
-            `Refund kapag kinansela ang kontrata (cash surrender value): ${refund} ng naibayad mo sa Hulog)`,
+            `Refund kapag kinansela ang kontrata (cash surrender value): ${refund} ng naibayad mo${prior ? "" : " sa Hulog"})`,
             "Puwede lang kanselahin ng seller ang kontrata 30 araw matapos mong matanggap ang notarial notice at matapos kang bayaran ng refund na ito.",
           ]),
+      ...(prior ? [`Kasama rito ang ${prior} hulog na naibayad bago ang Hulog, ayon sa tala ng broker mo.`] : []),
       "Puwede mong ibenta o ipasa sa iba ang karapatan mo bago makansela ang kontrata (Sec. 5).",
       "Puwede mong bayaran nang buo ang natitirang balanse nang mas maaga, nang walang interes (Sec. 6).",
     ];
@@ -62,9 +64,10 @@ export function rightsFacts({ rights: r, missed, dueDate, currency }: Situation,
           r.graceAvailable
             ? `Grace period: ${r.graceMonths} months, interest-free, until ${at(r.graceEnds!)}`
             : `Grace period: already used in this 5-year period of the contract; available again from ${at(r.nextGraceFrom!)}`,
-          `Refund if the contract is cancelled (cash surrender value): ${refund} of what you've paid through Hulog)`,
+          `Refund if the contract is cancelled (cash surrender value): ${refund} of what you've paid${prior ? "" : " through Hulog"})`,
           "The seller can cancel the contract only 30 days after you receive a notarial notice and after paying you this refund.",
         ]),
+    ...(prior ? [`This counts ${prior} installments paid before Hulog, as recorded by your broker.`] : []),
     "You can sell or assign your rights to someone else before the contract is cancelled (Sec. 5).",
     "You can pay the full remaining balance early, without interest (Sec. 6).",
   ];

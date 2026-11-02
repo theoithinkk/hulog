@@ -7,10 +7,23 @@ import { eventLabel, unpaidSince } from "./webhook";
 export const DEMO_PREFIX = "DEMO-";
 export const isDemoEvent = (eventId: string) => eventId.startsWith(DEMO_PREFIX);
 
+// Far enough back that a grace period has run out; needs a contract older than this.
+export const LONG_MISS_DAYS = 75;
+export const LONG_MISS_MIN_PRIOR = 3;
+
+const SUSPENDED = "BILLING.SUBSCRIPTION.SUSPENDED";
+
+// The newest event that says anything about payment. Suspending a plan says nothing either way.
+export const latestPaymentEvent = <T extends { event_type: string }>(events: T[]) =>
+  events.find((e) => e.event_type !== SUSPENDED);
+
+// `dueAt` backdates the missed installment. The row itself is still recorded now, so it stays the
+// newest event: a real charge from before the simulation doesn't clear it.
 export function demoFailure(
   subscriptionId: string,
   price?: { value: string; currency_code: string },
   now = new Date(),
+  dueAt?: Date,
 ): LedgerRow {
   return {
     eventId: `${DEMO_PREFIX}${randomUUID()}`,
@@ -21,7 +34,7 @@ export function demoFailure(
     // ponytail: the simulated installment falls due "now", not on PayPal's real billing date, so the
     // grace clock in a demo starts today. Fine for a demo; a real failure uses its own date.
     occurredAt: now.toISOString(),
-    raw: JSON.stringify({ demo: true }),
+    raw: JSON.stringify(dueAt ? { demo: true, dueAt: dueAt.toISOString() } : { demo: true }),
   };
 }
 
@@ -32,18 +45,19 @@ export const ledgerLabel = (e: { event_id: string; event_type: string }) =>
 // a simulated one can't change PayPal's balance, so in demo mode it counts on its own, dated from
 // the first simulated click (not an older real failure), so every demo shows a fresh grace period.
 export function behindSince(
-  events: { event_id: string; event_type: string; occurred_at: string | Date }[] | null,
+  events: { event_id: string; event_type: string; occurred_at: string | Date; due_at?: string | null }[] | null,
   owedOnPayPal: boolean,
   demoMode: boolean,
 ): Date | null {
   if (!events) return null;
-  if (demoMode && events[0] && isDemoEvent(events[0].event_id)) {
-    let first = events[0];
-    for (const e of events) {
+  const relevant = events.filter((e) => e.event_type !== SUSPENDED);
+  if (demoMode && relevant[0] && isDemoEvent(relevant[0].event_id)) {
+    let first = relevant[0];
+    for (const e of relevant) {
       if (!isDemoEvent(e.event_id)) break;
       first = e;
     }
-    return new Date(first.occurred_at);
+    return new Date(first.due_at ?? first.occurred_at);
   }
   return owedOnPayPal ? unpaidSince(events) : null;
 }

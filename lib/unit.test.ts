@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPlanId, isSubscriptionId, parseUnit, totalPriceLabel } from "./unit";
+import { contractProgress, isPlanId, isSubscriptionId, parseUnit, priorInstallments, totalPriceLabel } from "./unit";
 
 const valid = {
   name: "Unit 12B",
@@ -49,6 +49,38 @@ describe("parseUnit", () => {
 
   it("rejects non-object input", () => {
     expect(parseUnit(null).ok).toBe(false);
+  });
+});
+
+describe("installments already paid", () => {
+  it("are recorded on the unit when there are any", () => {
+    expect(parseUnit({ ...valid, prior: " 12 " })).toMatchObject({ ok: true, unit: { months: 36, prior: 12 } });
+    for (const prior of ["0", "", undefined]) {
+      const r = parseUnit({ ...valid, prior });
+      expect(r.ok && r.unit.prior).toBeUndefined();
+    }
+  });
+
+  it.each(["36", "37", "-1", "1.5", "many"])("rejects %s of 36", (prior) => {
+    expect(parseUnit({ ...valid, prior })).toMatchObject({ ok: false, error: expect.stringMatching(/Already paid/) });
+  });
+
+  it("are read back from the plan description", () => {
+    expect(priorInstallments("Azure - TCP PHP 1,800,000.00 - prior 36")).toBe(36);
+    expect(priorInstallments("Azure - TCP PHP 1,800,000.00")).toBe(0);
+    expect(priorInstallments(undefined)).toBe(0);
+  });
+
+  it("add to PayPal's count for the whole contract", () => {
+    const sub = {
+      id: "I-1",
+      status: "ACTIVE",
+      plan_id: "P-1",
+      billing_info: { cycle_executions: [{ tenure_type: "REGULAR" as const, cycles_completed: 2, total_cycles: 24 }] },
+    };
+    expect(contractProgress(sub, "A - prior 36")).toEqual({ prior: 36, paid: 38, total: 60 });
+    expect(contractProgress(sub)).toEqual({ prior: 0, paid: 2, total: 24 });
+    expect(contractProgress({ ...sub, billing_info: undefined }, "A - prior 36").total).toBe(0);
   });
 });
 

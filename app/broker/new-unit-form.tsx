@@ -37,7 +37,8 @@ export function NewUnitForm() {
       <Field name="project" label="Project" defaultValue="Azure Residences" />
       <Field name="tcp" label="Total contract price" defaultValue="1800000" inputMode="decimal" />
       <Field name="monthlyAmount" label="Monthly equity" defaultValue="15000" inputMode="decimal" />
-      <Field name="months" label="Installments" defaultValue="36" inputMode="numeric" hint="One per month." />
+      <Field name="months" label="Installments" defaultValue="36" inputMode="numeric" hint="The whole contract, one per month." />
+      <Field name="prior" label="Already paid" defaultValue="0" inputMode="numeric" hint="Installments paid before Hulog." />
       <label className="flex flex-col gap-1.5">
         <span className="font-semibold">Currency</span>
         <select name="currency" defaultValue="PHP" className={input}>

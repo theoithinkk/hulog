@@ -38,14 +38,17 @@ export function accountFacts(
   sub: Subscription,
   price: { value: string; currency_code: string } | undefined,
   situation: Situation | null,
+  prior = 0,
 ): string[] {
   const cycles = sub.billing_info?.cycle_executions?.find((c) => c.tenure_type === "REGULAR");
   const last = sub.billing_info?.last_payment;
   const owed = sub.billing_info?.outstanding_balance;
   const facts = [`Status on PayPal: ${sub.status}`];
   if (cycles) {
-    const { cycles_completed: paid, total_cycles: total } = cycles;
+    const paid = prior + cycles.cycles_completed;
+    const total = prior + cycles.total_cycles;
     facts.push(`Installments paid: ${paid} of ${total}`, `Installments remaining: ${total - paid}`);
+    if (prior) facts.push(`Of those paid, ${prior} were before Hulog, as recorded by the broker, so PayPal doesn't list them.`);
     if (paid < total) facts.push(`Next installment number: ${paid + 1}`);
     if (price) {
       const each = cents(price.value);

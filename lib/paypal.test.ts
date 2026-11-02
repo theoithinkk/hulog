@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildPlanBody, createUnitPlan, listTransactions, resetTokenCache, verifyWebhook } from "./paypal";
-import type { Unit } from "./unit";
+import { buildPlanBody, createUnitPlan, listTransactions, resetTokenCache, suspendSubscription, verifyWebhook } from "./paypal";
+import { priorInstallments, totalPriceLabel, type Unit } from "./unit";
 
 const unit: Unit = {
   name: "Unit 12B",
@@ -34,6 +34,14 @@ describe("buildPlanBody", () => {
       },
     ]);
     expect(body.payment_preferences.auto_bill_outstanding).toBe(true);
+  });
+
+  it("bills only what's left and records what was paid before Hulog", () => {
+    const body = buildPlanBody("PROD-1", { ...unit, project: "x".repeat(60), tcp: 1e9, months: 360, prior: 359 }, "DAY");
+    expect(body.billing_cycles[0].total_cycles).toBe(1);
+    expect(priorInstallments(body.description)).toBe(359);
+    expect(totalPriceLabel(body.description)).toBe("Total price PHP 1,000,000,000.00");
+    expect(body.description.length).toBeLessThanOrEqual(127);
   });
 
   it("puts project and TCP in the description within PayPal's 127-char limit", () => {
@@ -83,6 +91,16 @@ describe("createUnitPlan", () => {
     const planBody = JSON.parse(fetchMock.mock.calls[2][1].body);
     expect(planBody.product_id).toBe("PROD-1");
     expect(planBody.billing_cycles[0].frequency.interval_unit).toBe("DAY");
+  });
+
+  it("accepts PayPal's empty 204 reply when suspending", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ access_token: "tok", expires_in: 32400 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await expect(suspendSubscription("I-ABC", "demo")).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls[1][0]).toMatch(/\/v1\/billing\/subscriptions\/I-ABC\/suspend$/);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ reason: "demo" });
   });
 
   it("reuses a cached token across calls", async () => {

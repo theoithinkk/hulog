@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getPlan, PayPalError, type Plan } from "@/lib/paypal";
-import { isPlanId, totalPriceLabel } from "@/lib/unit";
+import { isPlanId, priorInstallments, totalPriceLabel } from "@/lib/unit";
 import { strands } from "@/lib/strip";
 import { Disclaimer, Shell } from "@/app/ui/shell";
 import { LEGEND_EN, WeaveLegend, WeaveStrip } from "@/app/ui/weave";
@@ -25,7 +25,8 @@ export default async function PayPage({ params }: { params: Promise<{ planId: st
   const price = cycle.pricing_scheme.fixed_price;
   const daily = cycle.frequency.interval_unit === "DAY";
   const clientId = process.env.PAYPAL_CLIENT_ID;
-  const weave = strands(cycle.total_cycles, 0, null);
+  const prior = priorInstallments(plan.description);
+  const weave = strands(prior + cycle.total_cycles, prior, null);
 
   return (
     <>
@@ -46,11 +47,20 @@ export default async function PayPage({ params }: { params: Promise<{ planId: st
             </span>
             <span className="text-ink-soft">
               a {daily ? "day (demo billing: each day stands in for a month)" : "month"}, for{" "}
-              <span className="num">{cycle.total_cycles}</span> installments
+              <span className="num">{cycle.total_cycles}</span> {prior > 0 && "remaining "}installments
+              {prior > 0 && (
+                <>
+                  {" "}
+                  (<span className="num">{prior}</span> already paid before Hulog)
+                </>
+              )}
             </span>
           </p>
           <div className="flex flex-col gap-3">
-            <WeaveStrip strands={weave} label={`${cycle.total_cycles} installments, none paid yet`} />
+            <WeaveStrip
+              strands={weave}
+              label={`${prior + cycle.total_cycles} installments, ${prior > 0 ? `${prior} paid` : "none paid yet"}`}
+            />
             <WeaveLegend strands={weave} labels={LEGEND_EN} />
           </div>
           <div className="border-t border-line pt-5">

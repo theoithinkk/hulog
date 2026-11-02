@@ -2,8 +2,9 @@ import { unstable_cache } from "next/cache";
 import type { LedgerEntry } from "./db";
 import { behindSince } from "./demo";
 import type { Situation } from "./explain";
-import { macedaRights, manilaDate } from "./maceda";
+import { addMonths, macedaRights, manilaDate } from "./maceda";
 import { getPlan, type Subscription } from "./paypal";
+import { contractProgress } from "./unit";
 
 // Plans don't change after creation, so one PayPal lookup an hour per plan is plenty.
 export const cachedPlan = (id: string) => unstable_cache(() => getPlan(id), ["plan", id], { revalidate: 3600 })();
@@ -24,22 +25,25 @@ export async function situationFor(
   const unpaid = behindSince(events, owed, demoMode);
   const missed = unpaid !== null;
   const due = unpaid ?? sub.billing_info?.next_billing_time;
-  const price = (await cachedPlan(sub.plan_id)).billing_cycles.find((c) => c.tenure_type === "REGULAR")?.pricing_scheme
-    .fixed_price;
+  const plan = await cachedPlan(sub.plan_id);
+  const price = plan.billing_cycles.find((c) => c.tenure_type === "REGULAR")?.pricing_scheme.fixed_price;
   // The currency code ends up in text sent to the model; accept only an ISO code.
   if (!due || !price || !/^[A-Z]{3}$/.test(price.currency_code)) return null;
 
+  const { prior, paid } = contractProgress(sub, plan.description);
   const dueDate = manilaDate(new Date(due));
   return {
     rights: macedaRights({
-      installmentsPaid: cycles.cycles_completed,
-      totalPaidCents: cycles.cycles_completed * Math.round(Number(price.value) * 100),
-      contractStart: manilaDate(new Date(sub.start_time)),
+      installmentsPaid: paid,
+      // ponytail: assumes earlier installments cost the same and fell monthly; contract records would make this exact.
+      totalPaidCents: paid * Math.round(Number(price.value) * 100),
+      contractStart: addMonths(manilaDate(new Date(sub.start_time)), -prior),
       dueDate,
       // ponytail: grace already used isn't tracked yet; it only matters after 2+ years. Add with contract records.
     }),
     missed,
     dueDate,
     currency: price.currency_code,
+    prior,
   };
 }

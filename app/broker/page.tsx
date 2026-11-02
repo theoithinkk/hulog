@@ -4,10 +4,9 @@ import { getSubscription, listPlans, type PlanSummary } from "@/lib/paypal";
 import { eventsFor, recentEvents, type LedgerEntry } from "@/lib/db";
 import { ledgerLabel } from "@/lib/demo";
 import { formatDate } from "@/lib/explain";
-import { isSampleId, sampleIds } from "@/lib/samples";
 import { cachedPlan, situationFor } from "@/lib/situation";
 import { installmentNumbers, rowStrand, strands, type Strand } from "@/lib/strip";
-import { totalPriceLabel } from "@/lib/unit";
+import { contractProgress, totalPriceLabel } from "@/lib/unit";
 import { Shell } from "@/app/ui/shell";
 import { WeaveStrip } from "@/app/ui/weave";
 import { NewUnitForm } from "./new-unit-form";
@@ -23,7 +22,6 @@ type Buyer = {
   id: string;
   name: string;
   unit?: string;
-  sample: boolean;
   weave: Strand[];
   total: number;
   numbers: Record<string, number>; // ledger event -> installment number (plain object: the cache stores JSON)
@@ -36,7 +34,7 @@ type Buyer = {
 // ponytail: limited to the latest 20 ledger events; list subscriptions per plan when brokers have more buyers.
 function buyersFrom(events: LedgerEntry[]): Promise<Buyer[]> {
   const ids = [...new Set(events.map((e) => e.subscription_id).filter((id): id is string => !!id))].slice(0, 8);
-  return unstable_cache(() => loadBuyers([...ids, ...sampleIds()]), ["buyers", ...ids], { revalidate: 30 })();
+  return unstable_cache(() => loadBuyers(ids), ["buyers", ...ids], { revalidate: 30 })();
 }
 
 async function loadBuyers(ids: string[]): Promise<Buyer[]> {
@@ -44,16 +42,15 @@ async function loadBuyers(ids: string[]): Promise<Buyer[]> {
     ids.map(async (id): Promise<Buyer> => {
       const [sub, history] = await Promise.all([getSubscription(id), eventsFor(id)]);
       const situation = await situationFor(sub, history, DEMO).catch(() => null);
-      const unit = await cachedPlan(sub.plan_id).then((p) => p.name, () => undefined);
-      const cycles = sub.billing_info?.cycle_executions?.find((c) => c.tenure_type === "REGULAR");
-      const paid = cycles?.cycles_completed ?? 0;
-      const total = cycles?.total_cycles ?? 0;
+      const plan = await cachedPlan(sub.plan_id).catch(() => null);
+      const unit = plan?.name;
+      const { paid, total } = contractProgress(sub, plan?.description);
       const weave = strands(total, paid, situation?.missed ? { graceEnds: situation.rights.graceEnds } : null);
       // The broker page is public: first name and surname initial are enough to tell buyers apart.
       const given = sub.subscriber?.name?.given_name;
       const initial = sub.subscriber?.name?.surname?.[0];
       const name = given ? `${given}${initial ? ` ${initial}.` : ""}` : "Buyer";
-      const base = { id, name, unit, sample: isSampleId(id), weave, total, numbers: Object.fromEntries(installmentNumbers(history, paid)) };
+      const base = { id, name, unit, weave, total, numbers: Object.fromEntries(installmentNumbers(history, paid)) };
       if (sub.status !== "ACTIVE" && sub.status !== "SUSPENDED")
         return { ...base, status: sub.status === "EXPIRED" ? "Fully paid" : "Cancelled", tone: "neutral" };
       if (weave.includes("missed")) return { ...base, status: "Missed, grace period over", tone: "missed" };
@@ -95,7 +92,7 @@ export default async function BrokerPage() {
   } catch (e) {
     console.error("recentEvents failed:", e);
   }
-  const buyers = await buyersFrom(events ?? []);
+  const buyers = events ? await buyersFrom(events) : [];
   const buyerOf = new Map(buyers.map((b) => [b.id, b]));
   // A buyer the demo board hides shouldn't appear as a nameless row below it.
   const payments = DEMO ? events?.filter((e) => buyerOf.has(e.subscription_id ?? "")) : events;
@@ -137,7 +134,6 @@ export default async function BrokerPage() {
                         <Link href={`/buyer/${encodeURIComponent(b.id)}`} className="font-extrabold text-ink">
                           {b.name}
                         </Link>
-                        {b.sample && <span className="ml-2 text-[0.9375rem] text-ink-soft">Sample</span>}
                         {b.unit && <div className="text-[0.9375rem] text-ink-soft">{b.unit}</div>}
                       </div>
                       <span className={`rounded-full px-3 py-0.5 text-[0.9375rem] font-semibold ${TONE[b.tone]}`}>{b.status}</span>

@@ -1,4 +1,3 @@
-import { samplePlan, sampleSubscription, sampleTransactions } from "./samples";
 import type { Unit } from "./unit";
 
 // ponytail: sandbox only, the PRD rules out live payments. Switch on PAYPAL_ENV if that changes.
@@ -64,6 +63,7 @@ async function call<T>(path: string, body?: unknown, retried = false): Promise<T
     return call(path, body, true);
   }
   if (!res.ok) throw await toError(res);
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
@@ -74,16 +74,18 @@ const amount = (n: number) =>
 
 // One REGULAR cycle repeated `months` times. No trial, no setup fee: equity installments are flat.
 export function buildPlanBody(productId: string, unit: Unit, interval: Interval) {
+  const prior = unit.prior ?? 0;
   return {
     product_id: productId,
     name: `${unit.name}, ${unit.project}`,
-    description: `${unit.project} - TCP ${unit.currency} ${amount(unit.tcp)}`.slice(0, 127),
+    // Read back by totalPriceLabel and priorInstallments. Fields cap this well under PayPal's 127 chars.
+    description: `${unit.project} - TCP ${unit.currency} ${amount(unit.tcp)}${prior ? ` - prior ${prior}` : ""}`,
     billing_cycles: [
       {
         frequency: { interval_unit: interval, interval_count: 1 },
         tenure_type: "REGULAR",
         sequence: 1,
-        total_cycles: unit.months,
+        total_cycles: unit.months - prior,
         pricing_scheme: {
           fixed_price: { value: unit.monthlyAmount.toFixed(2), currency_code: unit.currency },
         },
@@ -144,10 +146,17 @@ export async function listPlans() {
   return (r.plans ?? []).sort((a, b) => b.create_time.localeCompare(a.create_time));
 }
 
-export const getPlan = async (id: string) => samplePlan(id) ?? call<Plan>(`/v1/billing/plans/${encodeURIComponent(id)}`);
+export const getPlan = (id: string) => call<Plan>(`/v1/billing/plans/${encodeURIComponent(id)}`);
 
-export const getSubscription = async (id: string) =>
-  sampleSubscription(id) ?? call<Subscription>(`/v1/billing/subscriptions/${encodeURIComponent(id)}`);
+export const getSubscription = (id: string) =>
+  call<Subscription>(`/v1/billing/subscriptions/${encodeURIComponent(id)}`);
+
+// A suspended subscription isn't charged until it's activated again.
+export const suspendSubscription = (id: string, reason: string) =>
+  call<void>(`/v1/billing/subscriptions/${encodeURIComponent(id)}/suspend`, { reason });
+
+export const activateSubscription = (id: string, reason: string) =>
+  call<void>(`/v1/billing/subscriptions/${encodeURIComponent(id)}/activate`, { reason });
 
 export type Transaction = {
   id: string;
@@ -159,8 +168,6 @@ export type Transaction = {
 // The subscription's charges between two instants, newest first. Straight from PayPal, so it also
 // shows charges whose webhook never reached the ledger.
 export async function listTransactions(id: string, from: Date, to: Date) {
-  const sample = sampleTransactions(id);
-  if (sample) return sample;
   const q = new URLSearchParams({ start_time: from.toISOString(), end_time: to.toISOString() });
   const r = await call<{ transactions?: Transaction[] }>(
     `/v1/billing/subscriptions/${encodeURIComponent(id)}/transactions?${q}`,
