@@ -19,6 +19,7 @@ import {
 import { Disclaimer, Shell } from "@/app/ui/shell";
 import { LEGEND_EN, LEGEND_FIL, WeaveLegend, WeaveStrip } from "@/app/ui/weave";
 import { resetDemo, simulateMissedPayment } from "./actions";
+import { AskHulog } from "./ask-hulog";
 
 export const dynamic = "force-dynamic";
 
@@ -344,6 +345,8 @@ export default async function BuyerPage({
             </ul>
           )}
         </section>
+
+        <AskHulog subscriptionId={sub.id} lang={lang} />
 
         {DEMO && (
           <section

@@ -92,26 +92,35 @@ export function templateMessage({ rights, missed }: Situation, lang: Lang): stri
 
 const numbers = (s: string) => (s.match(/\d[\d,]*(?:\.\d+)?/g) ?? []).map((n) => n.replace(/,/g, ""));
 
-// Guardrail: every number in the AI's text must appear in the facts it was given.
-export function onlyKnownNumbers(text: string, facts: string) {
+// Numbers in the AI's text that don't appear in the facts it was given.
+const unknownNumbers = (text: string, facts: string) => {
   const known = new Set(numbers(facts));
-  return numbers(text).every((n) => known.has(n));
-}
+  return numbers(text).filter((n) => !known.has(n));
+};
+
+// Guardrail: every number in the AI's text must appear in the facts it was given.
+export const onlyKnownNumbers = (text: string, facts: string) => unknownNumbers(text, facts).length === 0;
 
 // Spelled-out numbers would slip past the digit check. "isa/isang" is left out: it's everyday Filipino for "a".
 const NUMBER_WORDS =
   /\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|half|dalawa|dalawang|tatlo|tatlong|apat|lima|limang|anim|pito|pitong|walo|walong|siyam|sampu|sampung|daan|libo|milyon|kalahati)\b/i;
 
-// The whole check an AI paragraph must pass. It fails closed: a false reject only means the template is shown.
+// The whole check AI text must pass. It fails closed: a false reject only means the fallback is shown.
 // ponytail: a number can still be paired with the wrong unit ("30 days grace"); the facts list beside it is the backstop.
-export function safeParagraph(text: string, facts: string) {
-  return (
-    text.length <= 600 &&
-    !/https?:|www\.|[*#[\]_`]/.test(text) &&
-    !NUMBER_WORDS.test(text) &&
-    onlyKnownNumbers(text, facts)
-  );
+// Returns why the text fails, or null when it passes. The reason quotes only what the AI made up.
+export function whyUnsafe(text: string, facts: string, maxLength: number): string | null {
+  if (text.length > maxLength) return "too long";
+  if (/https?:|www\.|[*#[\]_`]/.test(text)) return "link or markdown";
+  const word = text.match(NUMBER_WORDS);
+  if (word) return `spelled-out number "${word[0]}"`;
+  const unknown = unknownNumbers(text, facts);
+  if (unknown.length) return `numbers not in the facts: ${unknown.join(", ")}`;
+  return null;
 }
+
+export const safeText = (text: string, facts: string, maxLength: number) => whyUnsafe(text, facts, maxLength) === null;
+
+export const safeParagraph = (text: string, facts: string) => safeText(text, facts, 600);
 
 const system = (lang: Lang) => `You explain a home buyer's rights under the Philippine Maceda Law (RA 6552) in a short, warm message.
 - Use only the facts provided. Never add, change, or calculate a number, date, amount, or percentage.

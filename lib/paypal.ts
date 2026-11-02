@@ -148,6 +148,23 @@ export const getPlan = (id: string) => call<Plan>(`/v1/billing/plans/${encodeURI
 export const getSubscription = (id: string) =>
   call<Subscription>(`/v1/billing/subscriptions/${encodeURIComponent(id)}`);
 
+export type Transaction = {
+  id: string;
+  status: string; // COMPLETED, DECLINED, PENDING, REFUNDED, PARTIALLY_REFUNDED
+  time: string;
+  amount_with_breakdown?: { gross_amount?: { value: string; currency_code: string } };
+};
+
+// The subscription's charges between two instants, newest first. Straight from PayPal, so it also
+// shows charges whose webhook never reached the ledger.
+export async function listTransactions(id: string, from: Date, to: Date) {
+  const q = new URLSearchParams({ start_time: from.toISOString(), end_time: to.toISOString() });
+  const r = await call<{ transactions?: Transaction[] }>(
+    `/v1/billing/subscriptions/${encodeURIComponent(id)}/transactions?${q}`,
+  );
+  return (r.transactions ?? []).sort((a, b) => b.time.localeCompare(a.time));
+}
+
 const SIGNATURE_HEADERS = {
   auth_algo: "paypal-auth-algo",
   cert_url: "paypal-cert-url",

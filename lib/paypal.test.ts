@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildPlanBody, createUnitPlan, resetTokenCache, verifyWebhook } from "./paypal";
+import { buildPlanBody, createUnitPlan, listTransactions, resetTokenCache, verifyWebhook } from "./paypal";
 import type { Unit } from "./unit";
 
 const unit: Unit = {
@@ -227,5 +227,49 @@ describe("verifyWebhook", () => {
   it("fails clearly when the webhook ID is not configured", async () => {
     vi.stubEnv("PAYPAL_WEBHOOK_ID", "");
     await expect(verifyWebhook(headers, raw)).rejects.toThrow(/PAYPAL_WEBHOOK_ID/);
+  });
+});
+
+describe("listTransactions", () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    resetTokenCache();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("PAYPAL_CLIENT_ID", "id");
+    vi.stubEnv("PAYPAL_CLIENT_SECRET", "secret");
+  });
+
+  afterEach(() => {
+    fetchMock.mockReset();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("asks for the subscription's charges in the range and returns them newest first", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ access_token: "tok", expires_in: 32400 }))
+      .mockResolvedValueOnce(
+        json({
+          transactions: [
+            { id: "T1", status: "COMPLETED", time: "2026-10-30T01:00:00Z" },
+            { id: "T2", status: "COMPLETED", time: "2026-11-01T01:00:00Z" },
+          ],
+        }),
+      );
+
+    const txns = await listTransactions("I-ABC", new Date("2026-10-23T00:00:00Z"), new Date("2026-11-02T00:00:00Z"));
+    expect(txns.map((t) => t.id)).toEqual(["T2", "T1"]);
+    const url = new URL(fetchMock.mock.calls[1][0]);
+    expect(url.pathname).toBe("/v1/billing/subscriptions/I-ABC/transactions");
+    expect(url.searchParams.get("start_time")).toBe("2026-10-23T00:00:00.000Z");
+    expect(url.searchParams.get("end_time")).toBe("2026-11-02T00:00:00.000Z");
+  });
+
+  it("returns an empty list when PayPal has no transactions field", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ access_token: "tok", expires_in: 32400 }))
+      .mockResolvedValueOnce(json({}));
+    await expect(listTransactions("I-ABC", new Date(0), new Date())).resolves.toEqual([]);
   });
 });
